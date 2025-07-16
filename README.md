@@ -1,84 +1,109 @@
-# 탐지 에이전트
+# 오탐 탐지 에이전트
 
-이 프로젝트는 AWS GuardDuty, CloudTrail, CloudWatch 등 다양한 AWS 보안 이벤트 소스를 통합적으로 수집·분석·내보내기 위한 Python 기반 에이전트 프레임워크입니다.
+이 프로젝트는 보안 이벤트의 오탐을 자동으로 탐지하고 분석하기 위한 Python 기반 에이전트 프레임워크입니다. RAG(Retrieval Augmented Generation)와 LangGraph를 활용하여 이전 오탐 패턴을 학습하고 새로운 이벤트의 정오탐 여부를 판단합니다.
 
 ## 주요 특징
 
-- **다중 AWS 보안 소스 지원**: GuardDuty, CloudTrail, CloudWatch 이벤트 수집 및 분석
-- **모듈화된 수집기 구조**: 각 서비스별 Collector 클래스 제공
-- **이벤트 데이터 모델링**: dataclass 기반의 일관된 이벤트 모델
-- **위험도/심각도 분석**: 이벤트별 위험도, 심각도, 위협 카테고리 자동 분류
-- **필터링/통계/내보내기**: 다양한 기준의 필터, 통계 요약, JSON/CSV 내보내기 지원
-- **Mock 기반 테스트**: AWS 환경 없이도 Mock 데이터로 단위/통합 테스트 가능
-- **확장성**: 새로운 AWS 서비스 Collector 추가 용이
+- **RAG 기반 오탐 학습**: 과거 오탐 데이터를 벡터 DB에 저장하고 유사도 기반 검색
+- **LangGraph 워크플로우**: 이벤트 분석, 유사 패턴 검색, 정오탐 판단을 단계별로 처리
+- **Supabase 벡터 저장소**: 오탐 패턴의 효율적인 저장 및 검색
+- **OpenAI GPT-4 기반 분석**: 고도화된 언어 모델을 활용한 정확한 오탐 판단
+- **모듈화된 구조**: 각 기능별 독립적인 모듈 구성으로 유지보수성 향상
+- **확장 가능한 설계**: 새로운 분석 로직이나 저장소 추가 용이
+- **테스트 자동화**: 단위/통합 테스트를 통한 안정성 확보
 
 ## 폴더 구조
 
 ```
 agents/
-  detect/
-    collectors/         # 서비스별 수집기 (GuardDuty, CloudTrail 등)
-    models/             # 이벤트 데이터 모델
-    detect_agent.py     # 통합 탐지 에이전트
-  report_agent.py
-  respond_agent.py
-  analyze_agent.py
+  rag/                  # RAG 관련 모듈
+    vector_store.py     # Supabase 벡터 스토어 설정
+    document_converter.py # 이벤트 텍스트 변환
+    retriever.py        # 유사 문서 검색
+    supabase_client.py  # Supabase 클라이언트
+  analyze_agent.py      # 분석 에이전트
+  report_agent.py       # 리포트 생성 에이전트
+  respond_agent.py      # 대응 에이전트
 app/
-  main.py               # (예정) API/서비스 진입점
-  services/
-  core/
-  api/
-langgraph_flow/         # (예정) LangGraph 기반 워크플로우
+  main.py              # API/서비스 진입점
+  services/            # 서비스 레이어
+  core/                # 핵심 설정/유틸리티
+  api/                 # API 라우트
+langgraph_flow/        # LangGraph 워크플로우
+  nodes/               # 그래프 노드
+    summarize.py       # 이벤트 요약
+    retrieve.py        # 유사 이벤트 검색
+    analyze.py         # 정오탐 분석
+    store.py           # 오탐 저장
+  graph.py             # 메인 그래프 정의
+prompts/               # 프롬프트 템플릿
+  analyze_prompt.txt   # 분석 프롬프트
 tests/
-  collector/            # 각 서비스별 수집기 테스트 (Mock 포함)
-  data/                 # 테스트용 샘플 데이터
-  test_graph.py
-  test_agents.py
-requirements.txt        # 의존성 목록
-README.md
+  rag/                 # RAG 모듈 테스트
+  data/                # 테스트용 샘플 데이터
+  test_graph.py        # 그래프 워크플로우 테스트
+  test_agents.py       # 에이전트 테스트
 ```
 
 ## 주요 모듈 설명
 
-- **agents/detect/collectors/**  
-  - `guardduty_collector.py`: GuardDuty 탐지 결과 수집/필터/내보내기  
-  - `cloudtrail_collector.py`: CloudTrail 이벤트 수집/필터/내보내기  
-  - `base_collector.py`: 모든 Collector의 추상 기반 클래스  
-- **agents/detect/models/events.py**  
-  - CloudTrail, GuardDuty, CloudWatch 등 이벤트 데이터 모델 정의  
-  - 위험도/심각도/카테고리 등 분석 메서드 포함  
-- **agents/detect/detect_agent.py**  
-  - GuardDuty/CloudTrail 등 Collector를 통합 관리  
-  - 탐지 실행, 결과 변환, 통계, 내보내기 등 통합 로직  
-- **tests/**  
-  - Mock 기반 단위/통합 테스트, 샘플 데이터, 시나리오 기반 검증  
-  - `test_guardduty_mock.py`, `test_cloudtrail_mock.py` 등
+- **agents/rag/**
+  - `vector_store.py`: Supabase 벡터 스토어 설정 및 관리
+  - `document_converter.py`: 보안 이벤트를 텍스트로 변환
+  - `retriever.py`: 유사 오탐 패턴 검색 로직
+- **langgraph_flow/nodes/**
+  - `summarize.py`: 이벤트 데이터 요약
+  - `retrieve.py`: 유사 이벤트 검색
+  - `analyze.py`: GPT-4 기반 정오탐 분석
+  - `store.py`: 오탐 패턴 저장
+- **prompts/**
+  - 각 단계별 프롬프트 템플릿 관리
+  - 분석 기준 및 출력 포맷 정의
 
 ## 설치 및 실행
 
 1. **의존성 설치**
+
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **테스트 실행**
-   ```bash
-   # GuardDuty 모듈 종합 테스트
-   python tests/collector/test_guardduty_mock.py
+2. **환경 변수 설정**
 
-   # CloudTrail 수집기 Mock 테스트
-   제작 중
+   ```bash
+   # .env 파일 생성
+   OPENAI_API_KEY=your_api_key
+   SUPABASE_URL=your_supabase_url
+   SUPABASE_SERVICE_ROLE_KEY=your_key
+   LANGCHAIN_API_KEY=your_langsmith_key
    ```
 
-3. **탐지 에이전트 실행**
+3. **테스트 실행**
+
    ```bash
-   python agents/detect/detect_agent.py --region us-east-1 --hours 24 --sources guardduty cloudtrail --export-format json
+   # 전체 테스트 실행
+   pytest
+
+   # 특정 모듈 테스트
+   pytest tests/test_graph.py
+   pytest tests/rag/
    ```
 
-   주요 옵션:
-   - `--region`: AWS 리전 (기본: us-east-1)
-   - `--hours`: 탐지 시간 범위(시간)
-   - `--sources`: 사용할 소스(guardduty, cloudtrail, cloudwatch)
-   - `--severity-min`: GuardDuty 최소 심각도
-   - `--event-names`: CloudTrail 이벤트명 필터
-   - `--continuous`: 연속 탐지 모드
+4. **오탐 분석 실행**
+
+   ```python
+   from langgraph_flow.graph import process_security_event
+
+   event = {
+       "event_id": "evt-123",
+       "timestamp": "2024-03-21T14:30:00Z",
+       "detection_info": {
+           "rule_id": "rule_001",
+           # ... 이벤트 상세 정보
+       }
+   }
+
+   result = process_security_event(event)
+   print(f"오탐 여부: {result['is_false_positive']}")
+   print(f"설명: {result['explanation']}")
+   ```
