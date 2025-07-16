@@ -1,0 +1,36 @@
+{
+  "event_id": "evt-20250708-00124",
+  "timestamp": "2025-07-08T03:15:00Z",
+  "source": "guardduty",
+  "detection_info": {
+    "rule_id": "RULE_001",
+    "rule_name": "Suspicious Login Pattern - Credential Exposure",
+    "initial_risk_score": 5,
+    "confidence_score": 0.65,
+    "event_type": "authentication",
+    "severity": "MEDIUM"
+  },
+  "entities": {
+    "user_id": "deploy_bot",
+    "source_ip": "185.123.45.67",
+    "target_resource": "arn:aws:s3:::confidential-research-data",
+    "user_agent": "aws-sdk-java/1.12.570 Linux/5.15",
+    "session_id": "sess_xyz9876"
+  },
+  "context": {
+    "geolocation": {
+      "country": "RU",
+      "region": "Moscow",
+      "isp": "Contabo GmbH"
+    },
+    "timing": {
+      "business_hours": false,
+      "timezone": "UTC+3"
+    },
+    "behavioral_flags": {
+      "new_location": true,
+      "unusual_time": true,
+      "high_frequency": false
+    }
+  }
+}
