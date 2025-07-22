@@ -1,5 +1,14 @@
 def convert_event_to_text(event_json: dict) -> str:
-    """보안 이벤트 JSON을 텍스트로 변환합니다."""
+    """
+    Args:
+        event_json (dict): 보안 이벤트 JSON 데이터
+        
+    Returns:
+        str: 변환된 텍스트 문자열
+
+    description:
+        탐지 Agent에서 받은 이벤트 데이터를 오탐 탐지를 위한 text 데이터로 변환합니다.
+    """
     detection = event_json.get("detection_info", {})
     entities = event_json.get("entities", {})
     context = event_json.get("context", {})
@@ -19,4 +28,4 @@ def convert_event_to_text(event_json: dict) -> str:
         f"Behavior flags - New Location: {behavior.get('new_location')}, "
         f"Unusual Time: {behavior.get('unusual_time')}, "
         f"High Frequency: {behavior.get('high_frequency')}."
-    ) 
+    )

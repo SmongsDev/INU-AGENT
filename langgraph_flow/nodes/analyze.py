@@ -1,45 +1,32 @@
-import os
-from typing import TypedDict, Annotated
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
-from langgraph.graph.message import add_messages
+from fastapi import APIRouter, HTTPException
+from langgraph_flow.nodes.analyze import analyze_event
+from app.schemas.cloudtrail import CloudTrailEvent
 
-def load_prompt() -> str:
-    """분석 프롬프트를 로드합니다."""
-    with open("prompts/analyze_prompt.txt", "r") as f:
-        return f.read()
+router = APIRouter()
 
-class State(TypedDict):
-    messages: Annotated[list, add_messages]
-    event_summary: str
-    similar_events: list
-    is_false_positive: bool
-    explanation: str
-
-def analyze_event(state: State) -> State:
-    """이벤트를 분석하여 정오탐 여부를 판단합니다."""
-    model = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0.1,
-        api_key=os.environ.get("OPENAI_API_KEY")
-    )
-    
-    messages = [
-        SystemMessage(content=load_prompt()),
-        HumanMessage(content=f"""
-        현재 이벤트:
-        {state['event_summary']}
-        
-        유사 이벤트들:
-        {state['similar_events']}
-        """)
-    ]
-    
-    res = model.invoke(messages)
-    is_false_positive = "false positive" in res.content.lower()
-    
-    return {
-        'is_false_positive': is_false_positive,
-        'explanation': res.content,
-        'messages': [messages[-1], res],
-    } 
+@router.post("/analyze-agent", response_model=dict)
+async def analyze_event_route(event: CloudTrailEvent):
+    try:
+        # CloudTrail 이벤트를 상태 입력으로 변환
+        state = {
+            "event_id": event.event_id,
+            "event_source": event.event_source,
+            "event_name": event.event_name,
+            "aws_region": event.aws_region,
+            "event_time": event.event_time.isoformat(),
+            "user_identity": event.user_identity,
+            "request_parameters": event.request_parameters,
+            "response_elements": event.response_elements,
+            "error_code": event.error_code,
+            "error_message": event.error_message,
+            "messages": [],
+            "is_suspicious": False,
+            "analysis": ""
+        }
+        result = analyze_event(state)
+        return {
+            "is_suspicious": result["is_suspicious"],
+            "analysis": result["analysis"]
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
