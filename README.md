@@ -1,109 +1,159 @@
-# 오탐 탐지 에이전트
+# INU-AGENT
 
-이 프로젝트는 보안 이벤트의 오탐을 자동으로 탐지하고 분석하기 위한 Python 기반 에이전트 프레임워크입니다. RAG(Retrieval Augmented Generation)와 LangGraph를 활용하여 이전 오탐 패턴을 학습하고 새로운 이벤트의 정오탐 여부를 판단합니다.
+AWS CloudTrail 이벤트를 모니터링하고 분석하는 에이전트 시스템입니다.
 
-## 주요 특징
+## 주요 기능
 
-- **RAG 기반 오탐 학습**: 과거 오탐 데이터를 벡터 DB에 저장하고 유사도 기반 검색
-- **LangGraph 워크플로우**: 이벤트 분석, 유사 패턴 검색, 정오탐 판단을 단계별로 처리
-- **Supabase 벡터 저장소**: 오탐 패턴의 효율적인 저장 및 검색
-- **OpenAI GPT-4 기반 분석**: 고도화된 언어 모델을 활용한 정확한 오탐 판단
-- **모듈화된 구조**: 각 기능별 독립적인 모듈 구성으로 유지보수성 향상
-- **확장 가능한 설계**: 새로운 분석 로직이나 저장소 추가 용이
-- **테스트 자동화**: 단위/통합 테스트를 통한 안정성 확보
+1. CloudTrail 이벤트 동기화
 
-## 폴더 구조
+   - Supabase에 저장된 CloudTrail 이벤트를 주기적으로 동기화
+   - 설정 가능한 동기화 주기 (기본값: 5분)
+   - 증분 동기화 지원 (마지막 동기화 이후의 새로운 이벤트만 가져옴)
 
-```
-agents/
-  rag/                  # RAG 관련 모듈
-    vector_store.py     # Supabase 벡터 스토어 설정
-    document_converter.py # 이벤트 텍스트 변환
-    retriever.py        # 유사 문서 검색
-    supabase_client.py  # Supabase 클라이언트
-  analyze_agent.py      # 분석 에이전트
-  report_agent.py       # 리포트 생성 에이전트
-  respond_agent.py      # 대응 에이전트
-app/
-  main.py              # API/서비스 진입점
-  services/            # 서비스 레이어
-  core/                # 핵심 설정/유틸리티
-  api/                 # API 라우트
-langgraph_flow/        # LangGraph 워크플로우
-  nodes/               # 그래프 노드
-    summarize.py       # 이벤트 요약
-    retrieve.py        # 유사 이벤트 검색
-    analyze.py         # 정오탐 분석
-    store.py           # 오탐 저장
-  graph.py             # 메인 그래프 정의
-prompts/               # 프롬프트 템플릿
-  analyze_prompt.txt   # 분석 프롬프트
-tests/
-  rag/                 # RAG 모듈 테스트
-  data/                # 테스트용 샘플 데이터
-  test_graph.py        # 그래프 워크플로우 테스트
-  test_agents.py       # 에이전트 테스트
+2. 이벤트 분석
+   - CloudTrail 이벤트의 자동 분석
+   - 의심스러운 활동 탐지
+   - 상세한 분석 결과 제공
+
+## 시스템 요구사항
+
+- Python 3.8 이상
+- Supabase 계정 및 프로젝트
+- 필요한 Python 패키지 (requirements.txt 참조)
+
+## 설치 방법
+
+1. 저장소 클론
+
+```bash
+git clone [repository-url]
+cd INU-AGENT
 ```
 
-## 주요 모듈 설명
+2. 가상환경 생성 및 활성화
 
-- **agents/rag/**
-  - `vector_store.py`: Supabase 벡터 스토어 설정 및 관리
-  - `document_converter.py`: 보안 이벤트를 텍스트로 변환
-  - `retriever.py`: 유사 오탐 패턴 검색 로직
-- **langgraph_flow/nodes/**
-  - `summarize.py`: 이벤트 데이터 요약
-  - `retrieve.py`: 유사 이벤트 검색
-  - `analyze.py`: GPT-4 기반 정오탐 분석
-  - `store.py`: 오탐 패턴 저장
-- **prompts/**
-  - 각 단계별 프롬프트 템플릿 관리
-  - 분석 기준 및 출력 포맷 정의
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 또는
+.\venv\Scripts\activate  # Windows
+```
 
-## 설치 및 실행
+3. 의존성 설치
 
-1. **의존성 설치**
+```bash
+pip install -r requirements.txt
+```
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## 환경 설정
 
-2. **환경 변수 설정**
+1. `.env` 파일 생성 및 설정
 
-   ```bash
-   # .env 파일 생성
-   OPENAI_API_KEY=your_api_key
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_SERVICE_ROLE_KEY=your_key
-   LANGCHAIN_API_KEY=your_langsmith_key
-   ```
+```
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
 
-3. **테스트 실행**
+2. Supabase 테이블 스키마 설정
 
-   ```bash
-   # 전체 테스트 실행
-   pytest
+```sql
+-- 확장 모듈: pgcrypto (UUID 생성용)
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-   # 특정 모듈 테스트
-   pytest tests/test_graph.py
-   pytest tests/rag/
-   ```
+-- CloudTrail 로그 테이블
+CREATE TABLE cloudtrail (
+  -- 기본 식별자
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_id TEXT UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT now(),
 
-4. **오탐 분석 실행**
+  -- 이벤트 기본 정보
+  event_version TEXT,
+  event_time TIMESTAMPTZ,
+  event_source TEXT,
+  event_name TEXT,
+  event_category TEXT,
+  event_type TEXT,
+  aws_region TEXT,
+  read_only BOOLEAN,
 
-   ```python
-   from langgraph_flow.graph import process_security_event
+  -- 요청/응답 식별자
+  request_id TEXT,
 
-   event = {
-       "event_id": "evt-123",
-       "timestamp": "2024-03-21T14:30:00Z",
-       "detection_info": {
-           "rule_id": "rule_001",
-           # ... 이벤트 상세 정보
-       }
-   }
+  -- 네트워크 정보
+  source_ip INET,
+  user_agent TEXT,
 
-   result = process_security_event(event)
-   print(f"오탐 여부: {result['is_false_positive']}")
-   print(f"설명: {result['explanation']}")
-   ```
+  -- 관리 및 계정 정보
+  management_event BOOLEAN,
+  recipient_account_id TEXT,
+  session_credential_from_console TEXT,
+  shared_event_id TEXT,
+
+  -- 에러 정보
+  error_code TEXT,
+  error_message TEXT,
+
+  -- JSON 필드
+  user_identity JSONB,
+  tls_details JSONB,
+  request_parameters JSONB,
+  response_elements JSONB,
+  insight_details JSONB,
+  resources JSONB
+);
+```
+
+## 실행 방법
+
+1. 서버 실행
+
+```bash
+uvicorn app.main:app --reload
+```
+
+2. 로그 확인
+
+- 콘솔 출력
+- `app.log` 파일 (최대 10MB, 5개 백업 파일 유지)
+
+## API 엔드포인트
+
+- `GET /`: 서버 상태 확인
+- `POST /analyze-agent`: CloudTrail 이벤트 분석
+
+## 프로젝트 구조
+
+```
+INU-AGENT/
+├── agents/
+│   └── rag/
+│       └── supabase_client.py
+├── app/
+│   ├── api/
+│   │   └── routes.py
+│   ├── core/
+│   │   ├── config.py
+│   │   └── logger.py
+│   ├── schemas/
+│   │   ├── base.py
+│   │   └── cloudtrail.py
+│   ├── services/
+│   │   └── data_sync_service.py
+│   └── main.py
+├── langgraph_flow/
+│   └── nodes/
+│       └── analyze.py
+└── requirements.txt
+```
+
+## 로깅
+
+- 로그 레벨: INFO
+- 로그 포맷: `시간 - 로거이름 - 로그레벨 - 메시지`
+- 로그 저장: 콘솔 출력 및 파일 저장
+- 로그 순환: 10MB 단위, 최대 5개 파일
+
+## 라이선스
+
+[라이선스 정보]
