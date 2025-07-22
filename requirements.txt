@@ -77,3 +77,5 @@ scikit-learn==1.6.1
 boto3==1.38.39
 pytest
 supabase
+fastapi==0.110.0
+uvicorn==0.27.1
