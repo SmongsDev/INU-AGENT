@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List
 
 from app.core.logger import get_logger
@@ -12,6 +12,10 @@ class DataSyncService:
     def __init__(self):
         self.supabase = get_supabase_client()
         self.last_sync_time: Optional[datetime] = None
+        
+    def _get_utc_now(self) -> datetime:
+        """현재 시간을 UTC로 반환합니다."""
+        return datetime.now(timezone.utc)
         
     async def fetch_new_data(self, table_name: str) -> List[CloudTrailEvent]:
         """
@@ -27,17 +31,28 @@ class DataSyncService:
             query = self.supabase.table(table_name).select("*")
             
             if self.last_sync_time:
-                query = query.gte("created_at", self.last_sync_time.isoformat())
+                utc_time = self.last_sync_time.astimezone(timezone.utc)
+                logger.info(f"마지막 동기화 시간 (UTC): {utc_time.isoformat()}")
+                query = query.gte("created_at", utc_time.isoformat())
+            else:
+                logger.info("첫 번째 동기화 실행")
                 
             response = query.execute()
+            
+            logger.info(f"쿼리 응답: {response.data if len(response.data) < 3 else f'{len(response.data)}개의 레코드'}")
             
             if response.data:
                 logger.info(f"{len(response.data)}개의 새로운 CloudTrail 이벤트를 가져왔습니다.")
                 
             # Supabase 응답을 CloudTrailEvent 모델로 변환
-            events = [CloudTrailEvent(**event_data) for event_data in response.data]
+            try:
+                events = [CloudTrailEvent(**event_data) for event_data in response.data]
+            except Exception as e:
+                logger.error(f"이벤트 변환 중 오류 발생: {str(e)}")
+                logger.error(f"문제가 된 데이터: {response.data[:1] if response.data else '데이터 없음'}")
+                return []
             
-            self.last_sync_time = datetime.now()
+            self.last_sync_time = self._get_utc_now()
             return events
             
         except Exception as e:
@@ -52,7 +67,11 @@ class DataSyncService:
             table_name (str): 동기화할 테이블 이름
             interval_minutes (int): 동기화 주기 (분 단위)
         """
+        logger.info(f"CloudTrail 이벤트 동기화 시작 (테이블: {table_name}, 주기: {interval_minutes}분)")
+        
         while True:
+            current_time_utc = self._get_utc_now()
+            logger.info(f"새로운 이벤트 확인 중... (현재 시간 UTC: {current_time_utc.isoformat()})")
             new_events = await self.fetch_new_data(table_name)
             
             if new_events:
@@ -70,6 +89,7 @@ class DataSyncService:
                         log_message += f"  - Error: {event.error_code} - {event.error_message}\n"
                         
                     logger.info(log_message)
-                    # 여기에 이벤트 처리 로직을 추가할 수 있습니다.
+            else:
+                logger.info("새로운 이벤트가 없습니다.")
                 
-            await asyncio.sleep(interval_minutes * 60)  # 분을 초로 변환 
+            await asyncio.sleep(interval_minutes * 60)  # 분을 초로 변환
