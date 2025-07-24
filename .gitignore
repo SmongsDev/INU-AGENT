@@ -134,3 +134,6 @@ logs/
 *.temp
 .tmp/
 .temp/
+
+# 동기화 시간 파일
+last_sync_time.json
