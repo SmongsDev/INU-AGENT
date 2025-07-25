@@ -8,20 +8,21 @@ from .nodes.summarize import summarize_event
 from .nodes.retrieve import retrieve_similar_events
 from .nodes.analyze import analyze_event
 from .nodes.store import store_false_positive
+from app.schemas.cloudtrail import CloudTrailEvent
 
 # 환경 변수 로드
 dotenv.load_dotenv()
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-    event: dict
+    event: CloudTrailEvent
     event_summary: str
     similar_events: list
     is_false_positive: bool
     explanation: str
 
 class Input(TypedDict):
-    event: dict
+    event: CloudTrailEvent
 
 class Output(TypedDict):
     is_false_positive: bool
@@ -46,7 +47,7 @@ def create_graph() -> StateGraph:
     return builder.compile()
 
 @traceable(name="process_security_event")
-def process_security_event(event: dict) -> dict:
+def process_security_event(event: CloudTrailEvent) -> dict:
     """보안 이벤트를 처리하고 정오탐 여부를 반환합니다."""
     graph = create_graph()
     result = graph.invoke({
