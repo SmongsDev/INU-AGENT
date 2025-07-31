@@ -6,7 +6,7 @@ from typing import Optional, List
 from pathlib import Path
 
 from app.core.logger import get_logger
-from agents.rag.supabase_client import get_supabase_client
+from langgraph_flow.nodes.rag.supabase_client import get_supabase_client
 from app.schemas.cloudtrail import CloudTrailEvent
 
 logger = get_logger(__name__)
