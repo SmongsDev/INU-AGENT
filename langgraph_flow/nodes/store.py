@@ -1,6 +1,6 @@
 from typing import TypedDict
 from langchain_core.documents import Document
-from agents.rag.vector_store import get_vector_store
+from langgraph_flow.nodes.rag.vector_store import get_vector_store
 
 class State(TypedDict):
     event: dict

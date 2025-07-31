@@ -1,5 +1,5 @@
 from typing import TypedDict
-from agents.rag.document_converter import convert_event_to_text
+from langgraph_flow.nodes.rag.document_converter import convert_event_to_text
 
 class State(TypedDict):
     event: dict
