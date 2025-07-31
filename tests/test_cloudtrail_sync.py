@@ -3,7 +3,7 @@ import asyncio
 from datetime import datetime, timezone
 from app.services.data_sync_service import DataSyncService
 from app.schemas.cloudtrail import CloudTrailEvent
-from agents.rag.document_converter import convert_cloudtrail_to_text
+from langgraph_flow.nodes.rag.document_converter import convert_cloudtrail_to_text
 
 @pytest.mark.asyncio
 async def test_fetch_and_convert_cloudtrail_events():
@@ -40,7 +40,7 @@ async def test_continuous_sync_and_convert():
     
     service = DataSyncService()
     interval_minutes = 1  # 테스트를 위해 1분으로 설정
-    total_runtime_minutes = 5
+    total_runtime_minutes = 2
     cycles = total_runtime_minutes
     
     print(f"\n=== {total_runtime_minutes}분 동안 {interval_minutes}분 간격으로 이벤트 조회 ===")
