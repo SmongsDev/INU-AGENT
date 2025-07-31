@@ -34,6 +34,9 @@ class CloudTrailEvent(TimestampedModel):
     error_code: Optional[str] = Field(None, description="에러 코드")
     error_message: Optional[str] = Field(None, description="에러 메시지")
     
+    # ML 분석 결과
+    is_false_positive: Optional[bool] = Field(None, description="ML 기반 오탐 여부 판정")
+    
     # JSON 필드들
     user_identity: Optional[dict] = Field(None, description="사용자 식별 정보")
     tls_details: Optional[dict] = Field(None, description="TLS 상세 정보")
