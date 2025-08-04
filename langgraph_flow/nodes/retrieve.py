@@ -1,6 +1,6 @@
 from typing import TypedDict
 from langchain_core.documents import Document
-from agents.rag.retriever import RAGRetriever
+from langgraph_flow.nodes.rag.retriever import RAGRetriever
 
 class State(TypedDict):
     event_summary: str

@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from app.services.data_sync_service import DataSyncService
 from app.schemas.cloudtrail import CloudTrailEvent
 from langgraph_flow.nodes.rag.document_converter import convert_cloudtrail_to_text
+from langgraph_flow.graph import process_security_event
 
 @pytest.mark.asyncio
 async def test_fetch_and_convert_cloudtrail_events():
@@ -24,14 +25,8 @@ async def test_fetch_and_convert_cloudtrail_events():
     print(f"\n총 {len(events)}개의 이벤트를 가져왔습니다.")
     
     for idx, event in enumerate(events, 1):
-        print(f"\n[이벤트 {idx} - 원본 데이터]")
-        print(f"ID: {event.id}")
-        print(f"Event ID: {event.event_id}")
-        print(f"Event Time: {event.event_time}")
-        
-        print(f"\n[이벤트 {idx} - 변환된 텍스트]")
-        event_text = convert_cloudtrail_to_text(event)
-        print(event_text)
+        result = process_security_event(event)
+        print(result)
         print("-" * 80)
 
 @pytest.mark.asyncio
@@ -55,8 +50,7 @@ async def test_continuous_sync_and_convert():
             print(f"{len(events)}개의 새로운 이벤트를 발견했습니다.")
             for idx, event in enumerate(events, 1):
                 print(f"\n이벤트 {idx}:")
-                event_text = convert_cloudtrail_to_text(event)
-                print(event_text)
+                
                 print("-" * 50)
         else:
             print("새로운 이벤트가 없습니다.")
@@ -67,7 +61,7 @@ async def test_continuous_sync_and_convert():
 
 if __name__ == "__main__":
     # 단일 조회 테스트 실행
-    asyncio.run(test_fetch_and_convert_cloudtrail_events())
+    # asyncio.run(test_fetch_and_convert_cloudtrail_events())
     
     # 연속 조회 테스트 실행
     print("\n연속 조회 테스트를 시작합니다...")

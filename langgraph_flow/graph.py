@@ -50,8 +50,8 @@ def create_graph() -> StateGraph:
 def process_security_event(event: CloudTrailEvent) -> dict:
     """보안 이벤트를 처리하고 정오탐 여부를 반환합니다."""
     graph = create_graph()
-    result = graph.invoke({
-        "event": event
+    result = graph.invoke(input={
+    "event": event
     })
     return {
         "is_false_positive": result["is_false_positive"],
