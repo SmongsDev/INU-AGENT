@@ -15,6 +15,7 @@ Returns:
 def get_supabase_client() -> Client:
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    print(supabase_url)
     if not supabase_url or not supabase_key:
         raise ValueError("Supabase 환경변수가 설정되지 않았습니다.")
         

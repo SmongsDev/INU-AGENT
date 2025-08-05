@@ -4,11 +4,12 @@ from contextlib import asynccontextmanager
 
 from app.services.data_sync_service import DataSyncService
 from app.core.logger import get_logger
+from app.api.v1 import router as v1
 
 logger = get_logger(__name__)
 
 # 데이터 동기화 서비스 인스턴스
-data_sync_service = DataSyncService()
+# data_sync_service = DataSyncService()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -16,7 +17,7 @@ async def lifespan(app: FastAPI):
     logger.info("CloudTrail 이벤트 동기화 서비스를 시작합니다...")
     
     # 백그라운드 태스크로 데이터 동기화 시작
-    asyncio.create_task(data_sync_service.start_sync("cloudtrail", interval_minutes=1))
+    # asyncio.create_task(data_sync_service.start_sync("cloudtrail", interval_minutes=1))
     
     yield
     
@@ -24,6 +25,9 @@ async def lifespan(app: FastAPI):
     logger.info("애플리케이션을 종료합니다...")
 
 app = FastAPI(lifespan=lifespan)
+
+# API v1 라우터 포함
+app.include_router(v1, prefix="/api/v1")
 
 @app.get("/")
 async def root():
