@@ -4,7 +4,7 @@ from typing import List, Optional
 from app.schemas.cloudtrail import CloudTrailEvent
 from app.core.logger import get_logger
 from langgraph_flow.graph import process_security_event
-from langgraph_flow.nodes.store import store_false_positive
+from langgraph_flow.nodes.store import store_document, store_false_positive, update_false_positive_status
 from langgraph_flow.nodes.rag.document_converter import convert_cloudtrail_to_text
 
 logger = get_logger(__name__)
@@ -170,14 +170,14 @@ class Tier1Filter:
         try:
             if not filter_result["should_analyze"]:
                 # 분석 불필요한 이벤트 처리
-                # Tier2로 보내는 함수
-                # is_false_positive 값도 바꿔야 할까?
                 result = process_security_event(event)
+                update_false_positive_status(event, False)
                 print(result)
             else:
                 # 분석 필요한 이벤트 처리
                 # DB 저장으로 마무리
-                convert_cloudtrail_to_text(event)
+                event_summary = convert_cloudtrail_to_text(event)
+                store_document(event_summary=event_summary, explanation=filter_result["filter_reason"], event_id=event["event_id"])
                 
         except Exception as e:
             self.logger.error(f"Error processing event {event.event_id}: {str(e)}")
