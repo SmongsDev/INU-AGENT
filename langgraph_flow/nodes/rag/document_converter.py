@@ -73,6 +73,14 @@ def convert_cloudtrail_to_text(event: CloudTrailEvent) -> str:
                 f"계정={event.resources.get('accountId', 'N/A')}"
             )
     
+    # ML 분석 결과를 문장으로 구성
+    ml_analysis = []
+    if event.is_false_positive is not None:
+        if event.is_false_positive:
+            ml_analysis.append("ML 분석 결과: 오탐(false positive)으로 판정되었습니다.")
+        else:
+            ml_analysis.append("ML 분석 결과: 실제 보안 위험으로 판정되었습니다.")
+    
     # 모든 컨텍스트를 하나의 일관된 텍스트로 결합
     all_sections = [
         core_event,
@@ -80,7 +88,8 @@ def convert_cloudtrail_to_text(event: CloudTrailEvent) -> str:
         *network_context,
         *action_details,
         *error_info,
-        *resource_info
+        *resource_info,
+        *ml_analysis
     ]
     
     return " ".join(all_sections)
