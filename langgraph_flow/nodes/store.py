@@ -56,7 +56,7 @@ class State(TypedDict):
 
 def store_false_positive(state: State) -> State:
     """오탐으로 판단된 이벤트를 저장합니다."""
-    if not state['is_false_positive']:
+    if state['is_false_positive']:
         store_document(state['event_summary'], state['explanation'], state['event'].event_id)
         update_false_positive_status(state['event'], state['is_false_positive'])
     return state

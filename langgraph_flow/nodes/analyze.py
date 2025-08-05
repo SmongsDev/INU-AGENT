@@ -20,18 +20,17 @@ def analyze_event(state: State) -> State:
     
     Args:
         state: 현재 상태
-            - event: CloudTrailEvent
             - event_summary: str
-            - similar_events: list
+            - similar_events: list[Document]
     
     Returns:
-        Dict:
+        State:
             - is_false_positive: bool
             - explanation: str
     """
     llm = ChatOpenAI(
         model="gpt-4o-mini",
-        temperature=0
+        temperature=0.1
     )
     
     template = load_prompt_template()
