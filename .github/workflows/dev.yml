@@ -1,0 +1,50 @@
+# main.yml
+name: Python CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.6
+        with:
+          host: ${{ secrets.INU_PUBLIC_HOST }} # inu-public 서버 주소
+          username: ec2-user
+          key: ${{ secrets.INU_SDEV3_KEY }} # inu-sdev3.pem 내용
+          port: 22
+          script: |
+            # inu-sdev3 서버로 프록시를 통해 명령 실행
+            ssh -o ProxyCommand="ssh -W %h:%p inu-public" inu-sdev3 '
+              cd /home/ec2-user/INU-AGENT &&
+              git pull origin main &&
+              source venv/bin/activate &&
+              pip install -r requirements.txt &&
+              # 기존 uvicorn 프로세스 종료
+              pkill -f "uvicorn app.main:app" || true &&
+              # uvicorn으로 애플리케이션 실행 (백그라운드)
+              nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 &
+            '
