@@ -25,22 +25,38 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.INU_SDEV3_KEY }}" > ~/.ssh/inu-sdev3.pem
+          chmod 600 ~/.ssh/inu-sdev3.pem
+          echo "${{ secrets.INU_PUBLIC_KEY }}" > ~/.ssh/inu-public.pem
+          chmod 600 ~/.ssh/inu-public.pem
+
+          cat >> ~/.ssh/config << EOL
+          Host inu-public
+            HostName ${{ secrets.INU_PUBLIC_HOST }}
+            User ec2-user
+            IdentityFile ~/.ssh/inu-public.pem
+            StrictHostKeyChecking no
+
+          Host inu-sdev3
+            HostName 10.0.1.100
+            User ec2-user
+            IdentityFile ~/.ssh/inu-sdev3.pem
+            ProxyCommand ssh inu-public -W %h:%p
+            StrictHostKeyChecking no
+          EOL
+
       - name: Deploy to EC2
-        uses: appleboy/ssh-action@v0.1.6
-        with:
-          host: ${{ secrets.INU_PUBLIC_HOST }} # inu-public 서버 주소
-          username: ec2-user
-          key: ${{ secrets.INU_SDEV3_KEY }} # inu-sdev3.pem 내용
-          port: 22
-          script: |
-            # inu-sdev3 서버로 프록시를 통해 명령 실행
-            ssh -o ProxyCommand="ssh -W %h:%p inu-public" inu-sdev3 '
-              cd /home/ec2-user/INU-AGENT &&
-              git pull origin main &&
-              source venv/bin/activate &&
-              pip install -r requirements.txt &&
-              # 기존 uvicorn 프로세스 종료
-              pkill -f "uvicorn app.main:app" || true &&
-              # uvicorn으로 애플리케이션 실행 (백그라운드)
-              nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 &
-            '
+        run: |
+          ssh inu-sdev3 '
+            cd /home/ec2-user/INU-AGENT &&
+            git pull origin main &&
+            source venv/bin/activate &&
+            pip install -r requirements.txt &&
+            # 기존 uvicorn 프로세스 종료
+            pkill -f "uvicorn app.main:app" || true &&
+            # uvicorn으로 애플리케이션 실행 (백그라운드)
+            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 &
+          '
