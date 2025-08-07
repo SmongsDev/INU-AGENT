@@ -40,30 +40,19 @@ jobs:
         run: |
           ssh inu-sdev3 '
             cd /home/ec2-user/INU-AGENT &&
-            echo "=== Starting deployment ===" &&
             git pull origin main &&
-            echo "=== Git pull completed ===" &&
             source venv/bin/activate &&
-            echo "=== Virtual environment activated ===" &&
-            echo "Python version: $(python --version)" &&
-            echo "Current directory: $(pwd)" &&
             python3 -m pip install --upgrade pip &&
             pip install -r requirements.txt &&
-            echo "=== Dependencies installed ===" &&
-            # 기존 uvicorn 프로세스 종료
-            echo "=== Killing existing uvicorn processes ===" &&
-            pkill -f "uvicorn app.main:app" || true &&
-            sleep 2 &&
-            echo "=== Checking if uvicorn is available ===" &&
-            which uvicorn &&
-            uvicorn --version &&
-            echo "=== Starting uvicorn ===" &&
-            # uvicorn으로 애플리케이션 실행 (백그라운드)
-            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 &
-            UVICORN_PID=$! &&
-            echo "=== Uvicorn started with PID: $UVICORN_PID ===" &&
-            sleep 3 &&
-            echo "=== Checking if process is running ===" &&
-            ps aux | grep uvicorn | grep -v grep &&
-            echo "=== Deployment completed ==="
+            
+            # 기존 프로세스 종료
+            if [ -f "uvicorn.pid" ]; then
+                if kill $(cat uvicorn.pid) 2>/dev/null; then
+                    echo "Successfully stopped existing process"
+                fi &&
+                rm uvicorn.pid
+            fi &&
+            
+            # FastAPI 서버를 백그라운드로 실행
+            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 & echo $! > uvicorn.pid
           '
