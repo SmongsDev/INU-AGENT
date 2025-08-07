@@ -54,5 +54,5 @@ jobs:
             fi &&
             
             # FastAPI 서버를 백그라운드로 실행
-            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4 --log-level info > uvicorn.log 2>&1 & echo $! > uvicorn.pid
+            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info > uvicorn.log 2>&1 & echo $! > uvicorn.pid
           '
