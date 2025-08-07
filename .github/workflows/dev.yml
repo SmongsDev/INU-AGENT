@@ -38,21 +38,22 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh inu-sdev3 '
-            cd /home/ec2-user/INU-AGENT &&
-            git pull origin main &&
-            source venv/bin/activate &&
-            python3 -m pip install --upgrade pip &&
-            pip install -r requirements.txt &&
-            
-            # 8000번 포트 사용하는 프로세스 종료
-            pid=$(lsof -ti:8000)
-            if [ ! -z "$pid" ]; then
-              echo "Killing process using port 8000: $pid"
-              kill -9 $pid || true
-            fi &&
-            
-            # FastAPI 서버를 백그라운드로 실행
-            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info > uvicorn.log 2>&1 < /dev/null &
-            disown
-          '
+          ssh inu-sdev3 << 'EOF'
+          cd /home/ec2-user/INU-AGENT
+          git pull origin main
+          source venv/bin/activate
+          python3 -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # 8000번 포트 사용하는 프로세스 종료
+          pid=$(lsof -ti:8000)
+          if [ ! -z "$pid" ]; then
+            echo "Killing process using port 8000: $pid"
+            kill -9 $pid || true
+          fi
+
+          # FastAPI 서버 완전 디태치 실행
+          setsid uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info > uvicorn.log 2>&1 < /dev/null &
+
+          exit
+          EOF
