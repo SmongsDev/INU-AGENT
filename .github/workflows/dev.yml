@@ -45,14 +45,13 @@ jobs:
             python3 -m pip install --upgrade pip &&
             pip install -r requirements.txt &&
             
-            # 기존 프로세스 종료
-            if [ -f "uvicorn.pid" ]; then
-                if kill $(cat uvicorn.pid) 2>/dev/null; then
-                    echo "Successfully stopped existing process"
-                fi &&
-                rm uvicorn.pid
+            # 8000번 포트 사용하는 프로세스 종료
+            pid=$(lsof -ti:8000)
+            if [ ! -z "$pid" ]; then
+              echo "Killing process using port 8000: $pid"
+              kill -9 $pid || true
             fi &&
             
             # FastAPI 서버를 백그라운드로 실행
-            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info > uvicorn.log 2>&1 & echo $! > uvicorn.pid
+            nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info > uvicorn.log 2>&1 &
           '
