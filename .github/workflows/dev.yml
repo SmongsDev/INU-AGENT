@@ -30,14 +30,12 @@ jobs:
           mkdir -p ~/.ssh/
           echo "${{ secrets.INU_SDEV3_KEY }}" > ~/.ssh/inu-sdev3.pem
           chmod 600 ~/.ssh/inu-sdev3.pem
-          echo "${{ secrets.INU_PUBLIC_KEY }}" > ~/.ssh/inu-public.pem
-          chmod 600 ~/.ssh/inu-public.pem
 
           cat >> ~/.ssh/config << EOL
           Host inu-public
             HostName ${{ secrets.INU_PUBLIC_HOST }}
             User ec2-user
-            IdentityFile ~/.ssh/inu-public.pem
+            IdentityFile ~/.ssh/inu-sdev3.pem
             StrictHostKeyChecking no
 
           Host inu-sdev3
