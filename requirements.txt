@@ -16,7 +16,7 @@ langgraph==0.3.18
 langsmith==0.3.18
 
 # Database & Storage
-supabase
+psycopg2-binary
 
 # Testing
 pytest
