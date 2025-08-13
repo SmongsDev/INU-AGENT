@@ -1,5 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Boolean, DateTime
 from sqlalchemy.orm import relationship, declarative_base
+from sqlalchemy.dialects.postgresql import JSONB
+from datetime import datetime
 
 Base = declarative_base()
 
@@ -21,3 +23,18 @@ class User(Base):
     group_id = Column(Integer, ForeignKey("groups.id"))
 
     group = relationship("Group", back_populates="users")
+
+class CloudTrail(Base):
+    __tablename__ = "cloudtrail"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(String, nullable=False, unique=True, index=True)
+    event_data = Column(JSONB, nullable=False)
+    is_false_positive = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # 인덱스 생성을 위한 __table_args__ 설정
+    __table_args__ = (
+        # created_at에 대한 인덱스
+        {'postgresql_using': 'btree'},
+    )
