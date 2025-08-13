@@ -1,19 +1,20 @@
 import os
 from langchain_openai import OpenAIEmbeddings
-from langchain_community.vectorstores import SupabaseVectorStore
-from .supabase_client import get_supabase_client
+from langchain_community.vectorstores.pgvector import PGVector
+from app.db.session import engine
 
-def get_vector_store() -> SupabaseVectorStore:
-    """Supabase Vector Store 인스턴스를 반환합니다."""
-    supabase = get_supabase_client()
+def get_vector_store() -> PGVector:
+    """PostgreSQL Vector Store 인스턴스를 반환합니다."""
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small",
         api_key=os.environ.get("OPENAI_API_KEY")
     )
 
-    return SupabaseVectorStore(
-        embedding=embeddings,
-        client=supabase,
-        table_name="document",
-        query_name="match_documents",
-    ) 
+    connection_string = str(engine.url)
+    
+    return PGVector(
+        connection_string=connection_string,
+        embedding_function=embeddings,
+        collection_name="document",
+        distance_strategy="cosine"  # or "euclidean" or "max_inner_product"
+    )

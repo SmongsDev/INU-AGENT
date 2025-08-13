@@ -17,6 +17,8 @@ langsmith==0.3.18
 
 # Database & Storage
 psycopg2-binary
+sqlalchemy==2.0.27
+pgvector
 
 # Testing
 pytest
