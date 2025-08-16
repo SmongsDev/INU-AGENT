@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from pathlib import Path
 
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from app.core.logger import get_logger
 from app.schemas.cloudtrail import CloudTrailEvent
 from app.db.session import get_db
@@ -81,7 +81,32 @@ class DataSyncService:
                 
                 # CloudTrail 레코드를 CloudTrailEvent 모델로 변환
                 try:
-                    events = [CloudTrailEvent(**record.event_data) for record in records]
+                    events = []
+                    for record in records:
+                        event_data = {
+                            'event_id': record.event_id,
+                            'event_version': record.event_version,
+                            'event_time': record.event_time.isoformat() if record.event_time else None,
+                            'event_source': record.event_source,
+                            'event_name': record.event_name,
+                            'aws_region': record.aws_region,
+                            'source_ip': str(record.source_ip) if record.source_ip else None,
+                            'user_agent': record.user_agent,
+                            'error_code': record.error_code,
+                            'error_message': record.error_message,
+                            'request_parameters': record.request_parameters,
+                            'response_elements': record.response_elements,
+                            'user_identity': record.user_identity,
+                            'resources': record.resources,
+                            'event_category': record.event_category,
+                            'event_type': record.event_type,
+                            'management_event': record.management_event,
+                            'recipient_account_id': record.recipient_account_id,
+                            'shared_event_id': record.shared_event_id,
+                            'tls_details': record.tls_details,
+                            'insight_details': record.insight_details
+                        }
+                        events.append(CloudTrailEvent(**event_data))
                 except Exception as e:
                     logger.error(f"이벤트 변환 중 오류 발생: {str(e)}")
                     logger.error(f"문제가 된 데이터: {records[:1] if records else '데이터 없음'}")
