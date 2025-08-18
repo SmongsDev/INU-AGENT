@@ -1,16 +1,9 @@
-from pydantic import BaseModel
-from typing import List, Optional
-from app.schemas.user import UserResponse
+from datetime import datetime
+from typing import Optional, UUID
+from pydantic import BaseModel, Field
+from app.schemas.base import TimestampedModel
 
-class GroupBase(BaseModel):
-    name: Optional[str] = None
-
-class GroupCreate(GroupBase):
-    pass
-
-class GroupResponse(GroupBase):
-    id: int
-    users: List[UserResponse] = []
-
-    class Config:
-        from_attributes = True
+class Group(TimestampedModel):
+    id: UUID = Field(description="그룹 ID")
+    name: str = Field(description="회사 이름")
+    created_at: datetime = Field(description="생성 시간")

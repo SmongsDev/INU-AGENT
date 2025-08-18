@@ -3,9 +3,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
 from app.schemas.cloudtrail import CloudTrailEvent
 from app.core.logger import get_logger
-from langgraph_flow.graph import process_security_event
-from langgraph_flow.nodes.store import store_document, store_false_positive, update_false_positive_status
-from langgraph_flow.nodes.rag.document_converter import convert_cloudtrail_to_text
+from agent.graph import process_security_event
+from agent.nodes.store import store_document, store_false_positive, update_false_positive_status
+from agent.nodes.rag.document_converter import convert_cloudtrail_to_text
 
 logger = get_logger(__name__)
 

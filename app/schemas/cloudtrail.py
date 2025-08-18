@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, IPvAnyAddress
+from typing import Optional, UUID
+from pydantic import  Field, IPvAnyAddress
 from app.schemas.base import TimestampedModel
 
 class CloudTrailEvent(TimestampedModel):
-    id: str = Field(description="이벤트 고유 식별자 (UUID)")
+    id: UUID = Field(description="이벤트 고유 식별자 (UUID)")
     event_id: str = Field(description="AWS CloudTrail 이벤트 ID")
     
     # 이벤트 기본 정보
@@ -44,3 +44,6 @@ class CloudTrailEvent(TimestampedModel):
     response_elements: Optional[dict] = Field(None, description="응답 요소")
     insight_details: Optional[dict] = Field(None, description="인사이트 상세 정보")
     resources: Optional[dict] = Field(None, description="리소스 정보")
+
+    # 타임스탬프
+    created_at: datetime = Field(description="이벤트 생성 시간")

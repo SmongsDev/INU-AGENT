@@ -1,36 +1,53 @@
 # INU-AGENT
 
-AWS CloudTrail 이벤트를 모니터링하고 분석하는 에이전트 시스템입니다.
+AWS CloudTrail 이벤트를 모니터링하고 분석하는 AI 기반 에이전트 시스템입니다.
 
-## 주요 기능
+## 🌟 주요 기능
 
-1. CloudTrail 이벤트 동기화
+### 1. CloudTrail 이벤트 관리
 
-   - Supabase에 저장된 CloudTrail 이벤트를 주기적으로 동기화
-   - 설정 가능한 동기화 주기 (기본값: 5분)
-   - 증분 동기화 지원 (마지막 동기화 이후의 새로운 이벤트만 가져옴)
+- Supabase를 활용한 CloudTrail 이벤트 실시간 동기화
+- 증분 동기화를 통한 효율적인 데이터 관리
+- 구조화된 이벤트 데이터 저장 및 관리
 
-2. 이벤트 분석
-   - CloudTrail 이벤트의 자동 분석
-   - 의심스러운 활동 탐지
-   - 상세한 분석 결과 제공
+### 2. AI 기반 이벤트 분석
 
-## 시스템 요구사항
+- LangGraph를 활용한 고도화된 이벤트 분석
+- 의심스러운 활동 자동 탐지
+- 상세한 분석 리포트 생성
+- RAG(Retrieval Augmented Generation) 기반 컨텍스트 인식 분석
 
-- Python 3.8 이상
-- Supabase 계정 및 프로젝트
-- 필요한 Python 패키지 (requirements.txt 참조)
+### 3. 사용자 및 그룹 관리
 
-## 설치 방법
+- 역할 기반 접근 제어(RBAC)
+- 사용자 그룹 관리
+- 상세한 권한 설정
 
-1. 저장소 클론
+## 🔧 기술 스택
+
+- **Backend**: FastAPI
+- **Database**: PostgreSQL (with Supabase)
+- **AI/ML**: LangGraph, RAG
+- **인증/인가**: Supabase Auth
+- **로깅**: Python logging
+
+## 📋 시스템 요구사항
+
+- Python 3.8+
+- PostgreSQL 13+
+- Supabase 프로젝트
+- 필수 Python 패키지 (requirements.txt 참조)
+
+## 🚀 시작하기
+
+### 1. 저장소 클론
 
 ```bash
 git clone [repository-url]
 cd INU-AGENT
 ```
 
-2. 가상환경 생성 및 활성화
+### 2. 가상환경 설정
 
 ```bash
 python -m venv venv
@@ -39,121 +56,93 @@ source venv/bin/activate  # Linux/Mac
 .\venv\Scripts\activate  # Windows
 ```
 
-3. 의존성 설치
+### 3. 의존성 설치
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 환경 설정
+## ⚙️ 환경 설정
 
-1. `.env` 파일 생성 및 설정
+1. `.env` 파일 생성
 
-```
+```env
 SUPABASE_URL=your_supabase_url
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+DATABASE_URL=your_database_url
+LOG_LEVEL=INFO
 ```
 
-2. Supabase 테이블 스키마 설정
-
-```sql
--- 확장 모듈: pgcrypto (UUID 생성용)
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-
--- CloudTrail 로그 테이블
-CREATE TABLE cloudtrail (
-  -- 기본 식별자
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  event_id TEXT UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-
-  -- 이벤트 기본 정보
-  event_version TEXT,
-  event_time TIMESTAMPTZ,
-  event_source TEXT,
-  event_name TEXT,
-  event_category TEXT,
-  event_type TEXT,
-  aws_region TEXT,
-  read_only BOOLEAN,
-
-  -- 요청/응답 식별자
-  request_id TEXT,
-
-  -- 네트워크 정보
-  source_ip INET,
-  user_agent TEXT,
-
-  -- 관리 및 계정 정보
-  management_event BOOLEAN,
-  recipient_account_id TEXT,
-  session_credential_from_console TEXT,
-  shared_event_id TEXT,
-
-  -- 에러 정보
-  error_code TEXT,
-  error_message TEXT,
-
-  -- JSON 필드
-  user_identity JSONB,
-  tls_details JSONB,
-  request_parameters JSONB,
-  response_elements JSONB,
-  insight_details JSONB,
-  resources JSONB
-);
-```
-
-## 실행 방법
-
-1. 서버 실행
+2. 데이터베이스 마이그레이션
 
 ```bash
-uvicorn app.main:app --reload
+# 마이그레이션 명령어 추가 예정
 ```
 
-2. 로그 확인
-
-- 콘솔 출력
-- `app.log` 파일 (최대 10MB, 5개 백업 파일 유지)
-
-## API 엔드포인트
-
-- `GET /`: 서버 상태 확인
-- `POST /analyze-agent`: CloudTrail 이벤트 분석
-
-## 프로젝트 구조
+## 📁 프로젝트 구조
 
 ```
 INU-AGENT/
-├── agents/
-│   └── rag/
-│       └── supabase_client.py
-├── app/
-│   ├── api/
-│   │   └── routes.py
-│   ├── core/
-│   │   ├── config.py
-│   │   └── logger.py
-│   ├── schemas/
-│   │   ├── base.py
-│   │   └── cloudtrail.py
-│   ├── services/
-│   │   └── data_sync_service.py
-│   └── main.py
-├── langgraph_flow/
-│   └── nodes/
-│       └── analyze.py
-└── requirements.txt
+├── app/                    # 메인 애플리케이션
+│   ├── api/               # API 엔드포인트
+│   │   └── v1/           # API 버전 1
+│   ├── core/             # 핵심 설정 및 유틸리티
+│   ├── db/               # 데이터베이스 모델 및 세션
+│   ├── schemas/          # Pydantic 스키마
+│   └── services/         # 비즈니스 로직
+├── langgraph_flow/        # AI 분석 파이프라인
+│   ├── nodes/            # 분석 노드
+│   │   └── rag/         # RAG 관련 컴포넌트
+│   └── graph.py         # 플로우 그래프 정의
+├── prompts/              # AI 프롬프트 템플릿
+├── tests/               # 테스트 코드
+└── docs/                # 문서
 ```
 
-## 로깅
+## 🔄 API 엔드포인트
 
-- 로그 레벨: INFO
-- 로그 포맷: `시간 - 로거이름 - 로그레벨 - 메시지`
-- 로그 저장: 콘솔 출력 및 파일 저장
-- 로그 순환: 10MB 단위, 최대 5개 파일
+### 사용자 관리
 
-## 라이선스
+- `POST /api/v1/users`: 사용자 생성
+- `GET /api/v1/users/{user_id}`: 사용자 정보 조회
 
-[라이선스 정보]
+### 그룹 관리
+
+- `POST /api/v1/groups`: 그룹 생성
+- `GET /api/v1/groups/{group_id}`: 그룹 정보 조회
+
+### 이벤트 분석
+
+- `POST /api/v1/analyze`: 이벤트 분석 요청
+- `GET /api/v1/analyze/{analysis_id}`: 분석 결과 조회
+
+## 📝 로깅
+
+- **로그 레벨**: 환경 변수로 설정 가능 (기본: INFO)
+- **로그 형식**: `시간 - 로거이름 - 로그레벨 - 메시지`
+- **저장 방식**:
+  - 콘솔 출력
+  - 파일 저장 (`logs/app.log`)
+  - 로그 순환 (10MB 단위, 최대 5개 파일)
+
+## 🧪 테스트
+
+```bash
+# 전체 테스트 실행
+pytest
+
+# 특정 모듈 테스트
+pytest tests/test_rag_pipeline.py
+```
+
+## 🤝 기여하기
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 라이선스
+
+이 프로젝트는 MIT 라이선스 하에 있습니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
