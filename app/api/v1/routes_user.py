@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import User
-from app.schemas.user import UserCreate, UserResponse
+from app.schemas.user import UserCreate
 
 router = APIRouter()
 
-@router.post("/users", response_model=UserResponse)
+@router.post("/users")
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     new_user = User(**user.dict())
     db.add(new_user)
@@ -14,7 +14,7 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-@router.get("/users/{user_id}", response_model=UserResponse)
+@router.get("/users/{user_id}")
 def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:

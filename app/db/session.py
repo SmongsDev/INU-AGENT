@@ -7,7 +7,7 @@ import os
 load_dotenv()
 
 # 환경변수에서 DB URL 불러오기
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL is not set in the environment variables.")
