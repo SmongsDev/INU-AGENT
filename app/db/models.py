@@ -16,6 +16,7 @@ class Group(Base):
 
     id = Column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True)
     name = Column(String, nullable=False, comment="회사 이름")
+    code = Column(String, nullable=False, comment="회사 코드")
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
 
     # Relationships

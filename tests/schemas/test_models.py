@@ -7,6 +7,7 @@ def test_create_group(db_session):
     """Group 생성 테스트"""
     group = Group(
         name="테스트 회사",
+        code="test_001",
         created_at=datetime.now()
     )
     db_session.add(group)
@@ -21,6 +22,7 @@ def test_create_user_with_group(db_session):
     # 그룹 생성
     group = Group(
         name="테스트 회사",
+        code="test_001",
         created_at=datetime.now()
     )
     db_session.add(group)
@@ -50,6 +52,7 @@ def test_create_event_with_cloudtrail(db_session):
     # 그룹 생성
     group = Group(
         name="테스트 회사",
+        code="test_001",
         created_at=datetime.now()
     )
     db_session.add(group)
@@ -93,6 +96,7 @@ def test_create_user_session(db_session):
     # 그룹 생성
     group = Group(
         name="테스트 회사",
+        code="test_001",
         created_at=datetime.now()
     )
     db_session.add(group)
