@@ -9,14 +9,12 @@ class Event(TimestampedModel):
     source_product: SourceProduct = Field(description="소스 제품")
     source_ip: Optional[IPvAnyAddress] = Field(None, description="소스 IP")
     user_agent: Optional[str] = Field(None, description="사용자 에이전트")
-    payload: Dict[str, Any] = Field(description="이벤트 페이로드")
     created_at: datetime = Field(description="생성 시간")
 
 class MLLog(BaseModel):
     id: UUID = Field(description="로그 ID")
     severity: Optional[int] = Field(None, description="심각도")
     confidence: Optional[float] = Field(None, description="신뢰도")
-    result: Optional[Dict[str, Any]] = Field(None, description="분석 결과")
 
 class FalsePositiveLog(BaseModel):
     id: UUID = Field(description="로그 ID")
