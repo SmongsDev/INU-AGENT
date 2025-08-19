@@ -45,10 +45,10 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # 8000번 포트 사용하는 프로세스 종료
-          pid=$(lsof -ti:8000)
+          # 4100번 포트 사용하는 프로세스 종료
+          pid=$(lsof -ti:4100)
           if [ ! -z "$pid" ]; then
-            echo "Killing process using port 8000: $pid"
+            echo "Killing process using port 4100: $pid"
             kill -9 $pid || true
           fi
 
