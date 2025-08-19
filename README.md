@@ -6,7 +6,6 @@ AWS CloudTrail 이벤트를 모니터링하고 분석하는 AI 기반 에이전�
 
 ### 1. CloudTrail 이벤트 관리
 
-- Supabase를 활용한 CloudTrail 이벤트 실시간 동기화
 - 증분 동기화를 통한 효율적인 데이터 관리
 - 구조화된 이벤트 데이터 저장 및 관리
 
@@ -26,9 +25,8 @@ AWS CloudTrail 이벤트를 모니터링하고 분석하는 AI 기반 에이전�
 ## 🔧 기술 스택
 
 - **Backend**: FastAPI
-- **Database**: PostgreSQL (with Supabase)
+- **Database**: PostgreSQL
 - **AI/ML**: LangGraph, RAG
-- **인증/인가**: Supabase Auth
 - **로깅**: Python logging
 
 ## 📋 시스템 요구사항
@@ -142,7 +140,3 @@ pytest tests/test_rag_pipeline.py
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 있습니다. 자세한 내용은 [LICENSE](LICENSE) 파일을 참조하세요.
