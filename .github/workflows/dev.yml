@@ -53,7 +53,7 @@ jobs:
           fi
 
           # FastAPI 서버 완전 디태치 실행
-          setsid uvicorn app.main:app --host 0.0.0.0 --port 4100 --log-level info > uvicorn.log 2>&1 < /dev/null &
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 4100 --log-level info > uvicorn.log 2>&1 < /dev/null &
 
           exit
           EOF
