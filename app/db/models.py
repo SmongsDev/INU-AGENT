@@ -22,7 +22,7 @@ class Group(Base):
     # Relationships
     users = relationship("User", back_populates="group")
     settings = relationship("Settings", back_populates="group", uselist=False)
-    meta_data = relationship("Meta_Data", back_populates="group", uselist=False)
+    metadata = relationship("Metadata", back_populates="group", uselist=False)
     events = relationship("Event", back_populates="group")
 
 class Settings(Base):
@@ -37,14 +37,14 @@ class Settings(Base):
     # Relationships
     group = relationship("Group", back_populates="settings")
 
-class Meta_Data(Base):
-    __tablename__ = "meta_data"
+class Metadata(Base):
+    __tablename__ = "metadata"
 
     group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), primary_key=True, unique=True)
     data_sync_time = Column(TIMESTAMP)
 
     # Relationships
-    group = relationship("Group", back_populates="meta_data")
+    group = relationship("Group", back_populates="metadata")
 
 class User(Base):
     __tablename__ = "users"
@@ -146,9 +146,9 @@ class MLLog(Base):
     __tablename__ = "ml_log"
 
     id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
-    event_id = Column(PgUUID(as_uuid=True), nullable=False)
     severity = Column(Integer)
     confidence = Column(Float)
+    result = Column(JSONB)
 
     # Relationships
     event = relationship("Event", back_populates="ml_logs")
