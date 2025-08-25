@@ -2,15 +2,7 @@ from langchain_core.documents import Document
 from .vector_store import get_vector_store
 
 class RAGRetriever:
-    """
-    RAG 검색을 수행하는 클래스입니다.
-    
-    Args:
-        None
-        
-    Returns:
-        RAGRetriever: RAG 검색 인스턴스
-    """
+
     def __init__(self):
         self.vector_store = get_vector_store()
 

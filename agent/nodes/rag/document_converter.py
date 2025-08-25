@@ -1,17 +1,6 @@
-from datetime import datetime
-from typing import Optional, Dict, Any
 from app.schemas.cloudtrail import CloudTrailEvent
 
-def convert_cloudtrail_to_text(event: CloudTrailEvent) -> str:
-    """
-    CloudTrail 이벤트를 임베딩 검색에 최적화된 텍스트 형식으로 변환합니다.
-    
-    Args:
-        event (CloudTrailEvent): CloudTrail 이벤트 객체
-        
-    Returns:
-        str: 변환된 텍스트 문자열
-    """
+def convert_cloudtrail_to_text(event: CloudTrailEvent) -> str:    
     # 핵심 이벤트 정보를 자연스러운 문장으로 구성
     core_event = (
         f"AWS 사용자가 {event.event_time.strftime('%Y년 %m월 %d일 %H:%M:%S')}에 "

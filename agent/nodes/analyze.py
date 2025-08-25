@@ -15,19 +15,6 @@ def load_prompt_template() -> str:
         return f.read()
 
 def analyze_event(state: State) -> State:
-    """
-    LLM을 사용하여 보안 이벤트의 정오탐 여부를 분석합니다.
-    
-    Args:
-        state: 현재 상태
-            - event_summary: str
-            - similar_events: list[Document]
-    
-    Returns:
-        State:
-            - is_false_positive: bool
-            - explanation: str
-    """
     llm = ChatOpenAI(
         model="gpt-4o-mini",
         temperature=0.1
@@ -45,9 +32,8 @@ def analyze_event(state: State) -> State:
         "event_summary": state["event_summary"],
         "similar_events": state["similar_events"]
     })
-    analysis_result = response.content  # Extract string content
+    analysis_result = response.content
 
-    # LLM의 응답을 파싱하여 필요한 형식으로 변환
     is_false_positive = "false positive" in analysis_result.lower()
     explanation = analysis_result
     
