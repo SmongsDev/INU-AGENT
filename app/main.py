@@ -1,32 +1,35 @@
 import asyncio
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.services.data_sync_service import DataSyncService
+from app.services.cloudtrail_service import CloudTrailService
 from app.core.logger import get_logger
 from app.api.v1 import router as v1
 
 logger = get_logger(__name__)
 
-# 데이터 동기화 서비스 인스턴스
-# data_sync_service = DataSyncService()
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 애플리케이션 시작 시 데이터 동기화 서비스 시작
     logger.info("CloudTrail 이벤트 동기화 서비스를 시작합니다...")
     
-    # 백그라운드 태스크로 데이터 동기화 시작
-    # asyncio.create_task(data_sync_service.start_sync("cloudtrail", interval_minutes=1))
+    asyncio.create_task(CloudTrailService(group_id="accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf").start_monitoring(interval_minutes=1))
     
     yield
     
-    # 애플리케이션 종료 시 필요한 정리 작업
     logger.info("애플리케이션을 종료합니다...")
 
 app = FastAPI(lifespan=lifespan)
 
-# API v1 라우터 포함
+# CORS 설정
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5174"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(v1, prefix="/api/v1")
 
 @app.get("/")

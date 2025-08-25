@@ -41,7 +41,7 @@ class Meta_Data(Base):
     __tablename__ = "meta_data"
 
     group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), primary_key=True, unique=True)
-    data_sync_time = Column(TIMESTAMP)
+    data_sync_time = Column(TIMESTAMP, nullable=False, default=datetime.now)
 
     # Relationships
     group = relationship("Group", back_populates="meta_data")
