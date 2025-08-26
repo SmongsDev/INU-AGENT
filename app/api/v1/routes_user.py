@@ -9,7 +9,7 @@ from app.schemas.base import RoleType
 
 router = APIRouter()
 
-@router.post("/users", response_model=SignUpResponse)
+@router.post("/signup", response_model=SignUpResponse)
 def create_user(user: SignUpRequest, db: Session = Depends(get_db)):
     # 회사 코드로 그룹 검색
     group = db.query(Group).filter(Group.code == user.code).first()
