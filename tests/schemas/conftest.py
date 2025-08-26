@@ -3,11 +3,10 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+from app.db.models import Base
 
 # .env 파일 로드
 load_dotenv(os.path.join('.env'))
-
-from app.db.models import Base
 
 # 실제 데이터베이스 URL에서 테스트용 데이터베이스 URL 생성
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
