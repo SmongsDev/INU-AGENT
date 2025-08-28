@@ -79,7 +79,10 @@ def login(response: Response, login_data: LoginRequest, db: Session = Depends(ge
     return SessionResponse(
         token=token,
         expires_at=expires,
-        user=user
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        role=user.role
     )
 
 @router.post("/logout")

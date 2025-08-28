@@ -36,7 +36,10 @@ class LoginRequest(BaseModel):
 class SessionResponse(BaseModel):
     token: str
     expires_at: datetime
-    user: SignUpResponse
+    id: UUID
+    name: str
+    email: str
+    role: RoleType
 
     class Config:
         from_attributes = True
