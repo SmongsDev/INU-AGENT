@@ -18,9 +18,13 @@ langsmith==0.3.18
 
 # Database & Storage
 psycopg2-binary
-sqlalchemy==2.0.27
+sqlalchemy==2.0.35
 pgvector
 
 # Testing
 pytest
 pytest-asyncio==0.23.5
+
+# ML
+pandas==2.3.2
+scikit-learn==1.7.1
