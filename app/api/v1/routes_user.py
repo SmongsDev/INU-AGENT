@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import uuid
 from app.db.session import get_db
 from app.db.models import User, Group, Session as UserSession
-from app.schemas.user import SignUpRequest, SignUpCreate, SignUpResponse, LoginRequest, LoginResponse
+from app.schemas.user import SignUpRequest, SignUpCreate, SignUpResponse, LoginRequest, SessionResponse
 from app.schemas.base import RoleType
 
 router = APIRouter()
@@ -38,8 +38,8 @@ def create_user(user: SignUpRequest, db: Session = Depends(get_db)):
     
     return new_user
 
-@router.post("/login", response_model=LoginResponse)
-def login(login_data: LoginRequest, db: Session = Depends(get_db)):
+@router.post("/login", response_model=SessionResponse)
+def login(response: Response, login_data: LoginRequest, db: Session = Depends(get_db)):
     # 사용자 검증
     user = db.query(User).filter(User.email == login_data.email).first()
     if not user or user.pw_hash != login_data.pw_hash:
@@ -53,18 +53,43 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
 
     # 새 세션 생성
     token = str(uuid.uuid4())
+    expires = datetime.now(timezone.utc) + timedelta(days=7)  # 7일 유효
+    
     session = UserSession(
         user_id=user.id,
         token=token,
-        ip_addr="0.0.0.0",  # 실제 구현시 클라이언트 IP 사용
+        ip_addr=login_data.ip_addr,
         created_at=datetime.now(timezone.utc),
-        expired_at=datetime.now(timezone.utc) + timedelta(days=7)  # 7일 유효
+        expired_at=expires
     )
     
     db.add(session)
     db.commit()
 
-    return LoginResponse(
+    # 쿠키 설정
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        expires=expires.timestamp(),  # 만료 시간
+        httponly=True,  # JavaScript에서 접근 불가
+        secure=True,    # HTTPS에서만 전송
+        samesite="lax"  # CSRF 보호
+    )
+
+    return SessionResponse(
         token=token,
+        expires_at=expires,
         user=user
     )
+
+@router.post("/logout")
+def logout(response: Response, db: Session = Depends(get_db)):
+    # 쿠키 삭제
+    response.delete_cookie(
+        key="session_token",
+        httponly=True,
+        secure=True,
+        samesite="lax"
+    )
+    
+    return {"message": "Successfully logged out"}

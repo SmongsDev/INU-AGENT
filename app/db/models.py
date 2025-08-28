@@ -70,7 +70,7 @@ class Session(Base):
     ip_addr = Column(INET, nullable=False)
     token = Column(String, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
-    expired_at = Column(TIMESTAMP) ## 세션 만료 시간 구현 필요
+    expired_at = Column(TIMESTAMP)
 
     # Relationships
     user = relationship("User", back_populates="sessions")
@@ -146,8 +146,8 @@ class MLLog(Base):
     __tablename__ = "ml_log"
 
     id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
-    event_id = Column(PgUUID(as_uuid=True), nullable=False)
-    severity = Column(Integer)
+    event_id   = Column(PgUUID(as_uuid=True), nullable=False)
+    severity   = Column(Integer)
     confidence = Column(Float)
 
     # Relationships
@@ -158,11 +158,11 @@ class MLLog(Base):
 class FalsePositiveLog(Base):
     __tablename__ = "false_positive_log"
 
-    id = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
-    severity = Column(Integer)
+    id         = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
+    severity   = Column(Integer)
     confidence = Column(Float)
-    reason = Column(String)
-    result = Column(JSONB)
+    reason     = Column(String)
+    result     = Column(JSONB)
 
     # Relationships
     ml_log = relationship("MLLog", back_populates="false_positive_logs")
@@ -170,7 +170,7 @@ class FalsePositiveLog(Base):
 class FilterLog(Base):
     __tablename__ = "filter_log"
 
-    id = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
+    id     = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
     result = Column(JSONB)
 
     # Relationships
@@ -180,9 +180,27 @@ class Document(Base):
     __tablename__ = "document"
 
     id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
-    content = Column(String)
+    content       = Column(String)
     metadata_json = Column(JSONB)
-    embedding = Column(Vector)
+    embedding     = Column(Vector)
 
     # Relationships
     event = relationship("Event", back_populates="documents")
+
+# view
+class VwEventsEnriched(Base):
+    __tablename__  = "vw_events_enriched"
+    __table_args__ = {"info": {"is_view": True}}
+
+    id             = Column(PgUUID(as_uuid=True), primary_key=True)
+    group_id       = Column(PgUUID(as_uuid=True), nullable=False)
+    source_product = Column(Enum(SourceProduct), nullable=False)
+    source_ip      = Column(INET)
+    user_agent     = Column(String)
+    created_at     = Column(TIMESTAMP(timezone=True), nullable=False)
+    severity       = Column(Integer)
+    confidence     = Column(Float)
+    result         = Column(JSONB)
+    alert_key      = Column(String)
+
+

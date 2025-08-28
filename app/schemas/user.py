@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field, EmailStr
 from app.schemas.base import RoleType, TimestampedModel
@@ -32,7 +31,12 @@ class SignUpResponse(BaseModel):
 class LoginRequest(BaseModel):
     email: str
     pw_hash: str
+    ip_addr: str
 
-class LoginResponse(BaseModel):
+class SessionResponse(BaseModel):
     token: str
+    expires_at: datetime
     user: SignUpResponse
+
+    class Config:
+        from_attributes = True
