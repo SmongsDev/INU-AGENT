@@ -24,7 +24,7 @@ class Group(Base):
     settings = relationship("Settings", back_populates="group", uselist=False)
     meta_data = relationship("Meta_Data", back_populates="group", uselist=False)
     events = relationship("Event", back_populates="group")
-    aas = relationship("AAS", back_populates="group")
+    aas = relationship("aas", back_populates="group")
 
 class Settings(Base):
     __tablename__ = "settings"
