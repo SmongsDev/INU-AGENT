@@ -3,21 +3,27 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from app.services.cloudtrail_service import CloudTrailService
-from app.core.logger import get_logger
+from app.services.events_service import EventService
 from app.api.v1 import router as v1
 
-logger = get_logger(__name__)
+async def periodic_fetch(interval_minutes: int = 5):
+    event_service = EventService(group_id="accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf")
+    while True:
+        await event_service.fetch_new_events()
+        await asyncio.sleep(interval_minutes * 60)  # 5분을 초 단위로 변환
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("CloudTrail 이벤트 동기화 서비스를 시작합니다...")
-    
-    asyncio.create_task(CloudTrailService(group_id="accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf").start_monitoring(interval_minutes=1))
-    
+    # 주기적 실행 태스크 시작
+    monitoring_task = asyncio.create_task(periodic_fetch())
     yield
-    
-    logger.info("애플리케이션을 종료합니다...")
+    # 애플리케이션 종료 시 태스크 취소
+    monitoring_task.cancel()
+    try:
+        await monitoring_task
+    except asyncio.CancelledError:
+        pass
+
 
 app = FastAPI(lifespan=lifespan)
 
