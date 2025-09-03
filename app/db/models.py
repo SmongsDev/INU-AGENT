@@ -24,6 +24,7 @@ class Group(Base):
     settings = relationship("Settings", back_populates="group", uselist=False)
     meta_data = relationship("Meta_Data", back_populates="group", uselist=False)
     events = relationship("Event", back_populates="group")
+    aas = relationship("AAS", back_populates="group")
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -187,6 +188,18 @@ class Document(Base):
 
     # Relationships
     event = relationship("Event", back_populates="documents")
+
+# service
+class aas(Base):
+    __tablename__ = "aas"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
+    flow_name = Column(String)
+    flow_json = Column(JSONB)
+
+    # Relationships
+    group = relationship("Group", back_populates="aas")
 
 # view
 class VwEventsEnriched(Base):
