@@ -42,6 +42,7 @@ class Meta_Data(Base):
 
     group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), primary_key=True, unique=True)
     data_sync_time = Column(TIMESTAMP, nullable=False, default=datetime.now)
+    agent_flow = Column(JSONB)
 
     # Relationships
     group = relationship("Group", back_populates="meta_data")

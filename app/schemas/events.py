@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional, UUID, Dict, Any
+from typing import Optional, Dict, Any
+from uuid import UUID
 from pydantic import BaseModel, Field, IPvAnyAddress
 from app.schemas.base import SourceProduct, TimestampedModel
 

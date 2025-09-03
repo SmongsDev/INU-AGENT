@@ -14,3 +14,4 @@ class Settings(BaseModel):
 class Meta_Data(BaseModel):
     group_id: UUID = Field(description="그룹 ID")
     data_sync_time: datetime = Field(None, description="데이터 동기화 시간")
+    agent_flow: Optional[dict] = Field(None, description="사용자 커스텀 agent json")
