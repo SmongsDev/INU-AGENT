@@ -1,23 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
-from app.db.models import Session as SessionModel, User, aas
+from app.db.models import aas
 from app.schemas.aas import AASRequest, AASGetRequest
+from app.core.auth import get_group_id_from_token
 
 router = APIRouter()
 
 @router.post("/agent_draw")
 def save_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
-    session = db.query(SessionModel).filter(SessionModel.token == str(request.token)).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+    group_id = get_group_id_from_token(request.token, db)
     
-    user = db.query(User).filter(User.id == session.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    existing_aas = db.query(aas).filter(
+        aas.group_id == group_id,
+        aas.flow_name == request.flow_name
+    ).first()
+    
+    if existing_aas:
+        raise HTTPException(status_code=400, detail="Flow name already exists. Please use a different name.")
     
     new_aas = aas(
-        group_id=user.group_id,
+        group_id=group_id,
         flow_name=request.flow_name,
         flow_json=request.flow_json
     )
@@ -34,18 +37,12 @@ def get_agent_draw(
 ):
     if not request:
         raise HTTPException(status_code=400, detail="Token is required in request body")
-        
-    session = db.query(SessionModel).filter(SessionModel.token == str(request.token)).first()
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
     
-    user = db.query(User).filter(User.id == session.user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    group_id = get_group_id_from_token(request.token, db)
     
     aas_record = db.query(aas).filter(
         aas.flow_name == id,
-        aas.group_id == user.group_id
+        aas.group_id == group_id
     ).first()
     
     if not aas_record:
@@ -53,7 +50,23 @@ def get_agent_draw(
     
     return {
         "id": aas_record.id,
-        "group_id": str(aas_record.group_id),
         "flow_name": aas_record.flow_name,
         "flow_json": aas_record.flow_json
+    }
+
+@router.get("/agent_draws")
+def get_all_agent_draws(request: AASGetRequest, db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(request.token, db)
+    
+    aas_records = db.query(aas).filter(aas.group_id == group_id).all()
+    
+    return {
+        "agent_draws": [
+            {
+                "id": record.id,
+                "flow_name": record.flow_name,
+                "flow_json": record.flow_json
+            }
+            for record in aas_records
+        ]
     }
