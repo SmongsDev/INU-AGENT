@@ -11,7 +11,7 @@ class AgentFlowRequest(BaseModel):
     token: str
     agent_flow: dict
 
-@router.post("/agentflow")
+@router.post("/agent_flow")
 def save_agent_flow(request: AgentFlowRequest, db: Session = Depends(get_db)):
     session = db.query(SessionModel).filter(SessionModel.token == request.token).first()
     if not session:
