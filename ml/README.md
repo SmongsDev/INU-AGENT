@@ -24,29 +24,23 @@ cd ml/
 
 ### 2. 통합 실행 스크립트 사용
 ```bash
-# 모델 훈련
-python run_analysis.py train_model --source directory --dir data/
+# 모델 훈련 (디렉토리에서)
+python run_analysis.py train_model --source directory --dir data/0901/
+
+# 모델 훈련 (단일 파일)
+python run_analysis.py train_model --source json_file --file data/cloudtrail.json
 
 # 위협 분석 (데이터베이스에서)
-python run_analysis.py predict_threats --model models/detector.pkl --from-db
+python run_analysis.py predict_threats --model models/detector.pkl --group-id your-group-id
+
+# 단일 로그 파일 분석
+python run_analysis.py predict_file --model models/detector.pkl --file logs/cloudtrail.json
 
 # 배치 분석 (한 번만 실행)
 python run_analysis.py batch_analyzer --model models/detector.pkl --once
 
 # 모델 테스트
 python run_analysis.py test_detector
-```
-
-### 3. 직접 모듈 실행
-```bash
-# JSON 파일로 모델 훈련
-python -m src.core.train_model --source json_file --file data/cloudtrail.json
-
-# 로그 파일 분석
-python -m src.analysis.predict_threats --model models/detector.pkl --log data/logs.json
-
-# 데이터베이스에서 위협 분석
-python -m src.analysis.predict_threats --model models/detector.pkl --from-db --threats-only
 ```
 
 ## 📖 상세 사용법
@@ -60,7 +54,8 @@ python run_analysis.py <script_name> [인수들]
 
 #### 사용 가능한 스크립트
 - `train_model` - 모델 훈련
-- `predict_threats` - 최적화된 위협 예측 분석  
+- `predict_threats` - 최적화된 위협 예측 분석 (DB 기반)
+- `predict_file` - 단일 로그 파일 위협 예측 분석
 - `batch_analyzer` - 배치 분석
 - `test_detector` - 모델 테스트
 
@@ -87,43 +82,72 @@ python run_analysis.py train_model --source directory --dir data/
 
 ### 위협 예측
 
-#### 파일 기반 분석
-```bash
-python run_analysis.py predict_threats --model models/detector.pkl --log data/logs.json
-```
-
 #### 데이터베이스 기반 분석
 ```bash
-python run_analysis.py predict_threats --model models/detector.pkl --from-db
+# 모든 그룹 분석
+python run_analysis.py predict_threats --model models/detector.pkl
+
+# 특정 그룹만 분석
+python run_analysis.py predict_threats --model models/detector.pkl --group-id your-group-id
+
+# 위협만 출력 (고신뢰도)
+python run_analysis.py predict_threats --model models/detector.pkl --threats-only --min-confidence 0.8
+
+# 데이터베이스 저장 없이 분석
+python run_analysis.py predict_threats --model models/detector.pkl --no-save-db
+
+# 최대 분석할 이벤트 수 제한
+python run_analysis.py predict_threats --model models/detector.pkl --limit 1000
 ```
 
 #### 주요 옵션
 | 옵션 | 기본값 | 설명 |
 |------|--------|------|
 | `--model` | 필수 | 훈련된 모델 파일 경로 |
-| `--log` | - | 분석할 로그 파일 (파일 모드) |
-| `--from-db` | - | 데이터베이스에서 로그 읽기 |
 | `--group-id` | - | 특정 그룹만 분석 |
+| `--limit` | - | 최대 분석할 이벤트 수 |
 | `--threats-only` | False | 위협만 출력 |
 | `--min-confidence` | 0.7 | 최소 신뢰도 |
 | `--no-save-db` | False | 데이터베이스 저장 안함 |
+| `--batch-size` | 5000 | 배치 처리 크기 |
+
+### 단일 파일 예측
+
+#### 기본 사용법
+```bash
+# 기본 분석
+python run_analysis.py predict_file --model models/detector.pkl --file logs/cloudtrail.json
+
+# 위협만 표시
+python run_analysis.py predict_file --model models/detector.pkl --file logs/cloudtrail.json --threats-only
+
+# 신뢰도 임계값 조정
+python run_analysis.py predict_file --model models/detector.pkl --file logs/cloudtrail.json --min-confidence 0.8
+```
+
+#### 주요 옵션
+| 옵션 | 기본값 | 설명 |
+|------|--------|------|
+| `--model` | 필수 | 훈련된 모델 파일 경로 |
+| `--file` | 필수 | 분석할 CloudTrail JSON 파일 경로 |
+| `--min-confidence` | 0.7 | 위협 탐지 최소 신뢰도 |
+| `--threats-only` | False | 위협으로 탐지된 로그만 표시 |
 
 ### 배치 분석
 
-#### 한 번만 실행
+#### 기본 사용법
 ```bash
-python run_analysis.py batch_analyzer --model models/detector.pkl --once
+# 한 번만 실행 (기본 동작)
+python run_analysis.py batch_analyzer --model models/detector.pkl
+
+# 특정 그룹만 분석
+python run_analysis.py batch_analyzer --model models/detector.pkl --group-id your-group-id
+
+# 배치 크기 조정
+python run_analysis.py batch_analyzer --model models/detector.pkl --batch-size 2000
 ```
 
-#### 연속 실행
-```bash
-python run_analysis.py batch_analyzer --model models/detector.pkl --continuous --interval 30
-```
-
-#### 스케줄 실행
-```bash
-python run_analysis.py batch_analyzer --model models/detector.pkl --scheduled --schedule-time "02:00"
-```
+주의: batch_analyzer 스크립트의 연속 실행 및 스케줄 기능은 현재 구현 확인이 필요합니다.
 
 ## 📊 지원하는 CloudTrail 로그 형식
 
@@ -252,33 +276,34 @@ python -m src.core.test_detector
 
 ### Python 코드로 사용
 ```python
-# 파일 기반 로더는 더 이상 지원하지 않음
-# from src.data.data_loader import CloudTrailDataLoader
-from src.core.cloudtrail_threat_detector import CloudTrailThreatDetector
-from src.analysis.predict_threats import CloudTrailPredictor
+from ml.src.core.cloudtrail_threat_detector import CloudTrailThreatDetector
+from ml.src.data.file_data_loader import CloudTrailDataLoader
 
 # 1. 파일에서 데이터 로드
 loader = CloudTrailDataLoader()
 logs = loader.load_from_json_file('data/cloudtrail.json')
+valid_logs = loader.validate_logs(logs)
 
 # 2. 모델 훈련
 detector = CloudTrailThreatDetector()
-detector.train(logs)
+training_results = detector.train(valid_logs)
 detector.save_model('models/my_model.pkl')
 
 # 3. 훈련된 모델로 예측
-predictor = CloudTrailPredictor('models/my_model.pkl')
-result = predictor.predict_single(log_event)
+detector_loaded = CloudTrailThreatDetector()
+detector_loaded.load_model('models/my_model.pkl')
+
+result = detector_loaded.predict_single(log_event)
 print(f"위협: {result['is_threat']}, 신뢰도: {result['confidence']:.3f}")
 
 # 4. 배치 예측
-results = predictor.predict_batch(log_events_list)
+results = detector_loaded.predict_batch_with_confidence(log_events_list)
 ```
 
 ### 데이터베이스 연동 사용
 ```python
-from src.data.db_data_loader import DatabaseDataLoader
-from src.data.ml_result_saver import MLResultSaver
+from ml.src.data.db_data_loader import DatabaseDataLoader
+from ml.src.data.ml_result_saver import MLResultSaver
 
 # DB에서 로그 로드
 db_loader = DatabaseDataLoader()
@@ -311,20 +336,17 @@ python run_analysis.py train_model --source directory --dir data/ --output model
 
 ### 2단계: 실시간 분석 설정
 ```bash
-# 데이터베이스에서 자동 분석 (30분마다)
-python run_analysis.py batch_analyzer --model models/production_v1.pkl --continuous --interval 30
-
-# 또는 스케줄된 분석 (매일 새벽 2시)
-python run_analysis.py batch_analyzer --model models/production_v1.pkl --scheduled --schedule-time "02:00"
+# 데이터베이스에서 배치 분석 (한 번만)
+python run_analysis.py batch_analyzer --model models/production_v1.pkl
 ```
 
 ### 3단계: 위협 모니터링
 ```bash
 # 위협만 빠르게 확인
-python run_analysis.py predict_threats --model models/production_v1.pkl --from-db --threats-only --min-confidence 0.8
+python run_analysis.py predict_threats --model models/production_v1.pkl --threats-only --min-confidence 0.8
 
 # 특정 그룹만 분석
-python run_analysis.py predict_threats --model models/production_v1.pkl --from-db --group-id "uuid-here"
+python run_analysis.py predict_threats --model models/production_v1.pkl --group-id "uuid-here"
 ```
 
 ### 4단계: 주기적 모델 업데이트
@@ -334,10 +356,6 @@ python run_analysis.py train_model --source directory --dir updated_data/ --outp
 ```
 
 ### 5단계: 통계 및 모니터링
-```bash
-# ML 분석 통계 조회
-python run_analysis.py batch_analyzer --model models/production_v1.pkl --stats
+현재 통계 및 성능 정보 조회 기능은 구현 확인이 필요합니다.
 
-# 모델 성능 정보 확인
-python run_analysis.py predict_threats --model models/production_v1.pkl --info
-```
+기본적으로는 분석 실행 시 콘솔에 출력되는 정보를 통해 결과를 확인할 수 있습니다.

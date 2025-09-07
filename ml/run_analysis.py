@@ -20,14 +20,16 @@ def main():
     if len(sys.argv) < 2:
         print("사용법: python run_analysis.py <script_name> [arguments]")
         print("사용 가능한 스크립트:")
-        print("  predict_threats      - 최적화된 위협 예측 분석")
+        print("  predict_threats      - 최적화된 위협 예측 분석 (DB 기반)")
+        print("  predict_file         - 단일 로그 파일 위협 예측 분석")
         print("  batch_analyzer       - 배치 분석")
         print("  train_model          - 모델 훈련") 
         print("  test_detector        - 모델 테스트")
         print("")
         print("예제:")
-        print("  python run_analysis.py predict_threats --model models/detector.pkl --batch-size 5000")
-        print("  python run_analysis.py batch_analyzer --model models/detector.pkl --once")
+        print("  python run_analysis.py predict_threats --model models/detector.pkl --group-id your-id")
+        print("  python run_analysis.py predict_file --model models/detector.pkl --file logs/cloudtrail.json")
+        print("  python run_analysis.py batch_analyzer --model models/detector.pkl")
         print("  python run_analysis.py train_model --source directory --dir data/")
         sys.exit(1)
 
@@ -41,6 +43,10 @@ def main():
         if script_name == "predict_threats":
             from src.analysis.predict_threats_optimized import main as predict_main
             predict_main()
+            
+        elif script_name == "predict_file":
+            from src.analysis.predict_single_file import main as predict_file_main
+            predict_file_main()
             
         elif script_name == "batch_analyzer":
             from src.analysis.batch_analyzer import main as batch_main
@@ -56,7 +62,7 @@ def main():
             
         else:
             print(f"❌ 알 수 없는 스크립트: {script_name}")
-            print("사용 가능한 스크립트: predict_threats, batch_analyzer, train_model, test_detector")
+            print("사용 가능한 스크립트: predict_threats, predict_file, batch_analyzer, train_model, test_detector")
             sys.exit(1)
             
     except KeyboardInterrupt:
