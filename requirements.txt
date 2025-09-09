@@ -28,3 +28,6 @@ pytest-asyncio==0.23.5
 # ML
 pandas==2.3.2
 scikit-learn==1.7.1
+
+# S3
+boto3

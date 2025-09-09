@@ -8,17 +8,15 @@ CloudTrail 위협 탐지 모델 훈련 스크립트
 import argparse
 import sys
 from pathlib import Path
-# 파일 기반 데이터 로더는 더 이상 지원하지 않습니다. 
-# 데이터베이스 기반 훈련을 위해서는 db_data_loader를 사용하세요.
-# from ..data.db_data_loader import DatabaseDataLoader
-from cloudtrail_threat_detector import CloudTrailThreatDetector
+from ..data.file_data_loader import CloudTrailDataLoader
+from .cloudtrail_threat_detector import CloudTrailThreatDetector
 
 
 def train_threat_detection_model(
     data_source: str,
     file_path: str = None,
     directory_path: str = None,
-    model_output_path: str = "models/cloudTrail_v1.pkl",
+    model_output_path: str = "ml/models/cloudTrail_v1.pkl",
     min_logs: int = 100,
     time_filter_start: str = None,
     time_filter_end: str = None
@@ -217,7 +215,7 @@ def main():
 
   # 커스텀 모델 저장 경로
   python train_model.py --source json_file --file data/cloudtrail.json \\
-    --output models/my_detector.pkl
+    --output ml/models/my_detector.pkl
         """
     )
     
@@ -243,8 +241,8 @@ def main():
     parser.add_argument(
         '--output', 
         type=str, 
-        default='models/cloudtrail_threat_detector.pkl',
-        help='훈련된 모델을 저장할 경로 (기본값: models/cloudtrail_threat_detector.pkl)'
+        default='ml/models/cloudtrail_threat_0901.pkl',
+        help='훈련된 모델을 저장할 경로 (기본값: ml/models/cloudtrail_threat_detector.pkl)'
     )
     
     parser.add_argument(

@@ -145,3 +145,7 @@ ml/logs
 
 # claude
 .claude/
+
+# s3
+s3_logs/
+/utils

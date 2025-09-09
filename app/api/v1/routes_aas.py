@@ -55,8 +55,8 @@ def get_agent_draw(
     }
 
 @router.get("/agent_draws")
-def get_all_agent_draws(request: AASGetRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def get_all_agent_draws(token: str = Query(...), db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(token, db)
     
     aas_records = db.query(aas).filter(aas.group_id == group_id).all()
     
