@@ -8,3 +8,7 @@ class AASRequest(BaseModel):
 
 class AASGetRequest(BaseModel):
     token: UUID
+
+class AASDeleteRequest(BaseModel):
+    token: UUID
+    flow_name: str

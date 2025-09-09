@@ -15,6 +15,9 @@ class AgentFlowRequest(BaseModel):
 class AgentFlowGetRequest(BaseModel):
     token: str
 
+class AgentFlowDeleteRequest(BaseModel):
+    token: str
+
 @router.post("/agent_setup")
 def save_agent_flow(request: AgentFlowRequest, db: Session = Depends(get_db)):
     group_id = get_group_id_from_token(request.token, db)
@@ -46,3 +49,16 @@ def get_agent_flow(token: str = Query(...), db: Session = Depends(get_db)):
         "agent_flow": meta_data.agent_flow,
         "data_sync_time": meta_data.data_sync_time
     }
+
+@router.post("/agent_setup/delete")
+def delete_agent_flow(request: AgentFlowDeleteRequest, db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(request.token, db)
+    
+    meta_data = db.query(Meta_Data).filter(Meta_Data.group_id == group_id).first()
+    if not meta_data:
+        raise HTTPException(status_code=404, detail="Agent flow not found")
+    
+    db.delete(meta_data)
+    db.commit()
+    
+    return {"message": "Agent flow deleted successfully"}
