@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import Meta_Data
@@ -35,8 +35,8 @@ def save_agent_flow(request: AgentFlowRequest, db: Session = Depends(get_db)):
     return {"message": "Agent flow saved successfully"}
 
 @router.get("/agent_setup")
-def get_agent_flow(request: AgentFlowGetRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def get_agent_flow(token: str = Query(...), db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(token, db)
     
     meta_data = db.query(Meta_Data).filter(Meta_Data.group_id == group_id).first()
     if not meta_data:

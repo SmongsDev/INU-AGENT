@@ -32,13 +32,10 @@ def save_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
 @router.get("/agent_draw")
 def get_agent_draw(
     id: str = Query(...),
-    request: AASGetRequest = None,
+    token: str = Query(...),
     db: Session = Depends(get_db)
 ):
-    if not request:
-        raise HTTPException(status_code=400, detail="Token is required in request body")
-    
-    group_id = get_group_id_from_token(request.token, db)
+    group_id = get_group_id_from_token(token, db)
     
     aas_record = db.query(aas).filter(
         aas.flow_name == id,
