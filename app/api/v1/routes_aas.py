@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.db.models import aas
-from app.schemas.aas import AASRequest, AASGetRequest
+from app.schemas.aas import AASRequest, AASGetRequest, AASDeleteRequest
 from app.core.auth import get_group_id_from_token
 
 router = APIRouter()
@@ -67,3 +67,20 @@ def get_all_agent_draws(token: str = Query(...), db: Session = Depends(get_db)):
             for record in aas_records
         ]
     }
+
+@router.post("/agent_draw/delete")
+def delete_agent_draw(request: AASDeleteRequest, db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(request.token, db)
+    
+    aas_record = db.query(aas).filter(
+        aas.flow_name == request.flow_name,
+        aas.group_id == group_id
+    ).first()
+    
+    if not aas_record:
+        raise HTTPException(status_code=404, detail="Agent draw not found")
+    
+    db.delete(aas_record)
+    db.commit()
+    
+    return {"message": "Agent draw deleted successfully"}
