@@ -24,7 +24,6 @@ def main():
         print("  predict_file         - 단일 로그 파일 위협 예측 분석")
         print("  batch_analyzer       - 배치 분석")
         print("  train_model          - 모델 훈련") 
-        print("  test_detector        - 모델 테스트")
         print("")
         print("예제:")
         print("  python run_analysis.py predict_threats --model models/detector.pkl --group-id your-id")
@@ -56,13 +55,9 @@ def main():
             from src.core.train_model import main as train_main
             train_main()
             
-        elif script_name == "test_detector":
-            from src.core.test_detector import main as test_main
-            test_main()
-            
         else:
             print(f"❌ 알 수 없는 스크립트: {script_name}")
-            print("사용 가능한 스크립트: predict_threats, predict_file, batch_analyzer, train_model, test_detector")
+            print("사용 가능한 스크립트: predict_threats, predict_file, batch_analyzer, train_model")
             sys.exit(1)
             
     except KeyboardInterrupt:

@@ -31,7 +31,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
 class OptimizedCloudTrailPredictor:
     """
     최적화된 CloudTrail 위협 예측 클래스
@@ -142,7 +141,6 @@ class OptimizedCloudTrailPredictor:
             logger.info(f"  평균 속도: {total_count/total_time:.1f} logs/sec")
         
         return all_results
-
 
 def analyze_database_events_optimized(
     model_path: str, 

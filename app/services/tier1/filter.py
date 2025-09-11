@@ -1,7 +1,9 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
+from datetime import datetime
 from app.schemas.cloudtrail import CloudTrailEvent
+from ml.src.data.ml_result_saver import MLResultSaver
 from app.core.logger import get_logger
 from agent.graph import process_security_event
 from agent.nodes.store import store_document, store_false_positive, update_false_positive_status
@@ -58,6 +60,7 @@ class Tier1Filter:
     def __init__(self, max_workers: int = 5):
         self.logger = logger
         self.max_workers = max_workers
+        self.ml_result_saver = MLResultSaver()
     
     def filter_event(self, event: CloudTrailEvent) -> dict:
         """
@@ -70,61 +73,40 @@ class Tier1Filter:
             dict: 필터링 결과 및 위험도 정보
         """
         result = {
-            "event_id": event.event_id,
-            "should_analyze": True,
-            "risk_level": "medium",
-            "filter_reason": None
+            "event_id": event.id,
+            "should_analyze": False,  # 기본값: ML 정상 판단 확정
+            "filter_reason": "ML 정상 판단 확정"
         }
         
         try:
-            # 1. 이벤트 이름 기반 필터링 - 저위험 읽기 전용은 분석 제외
-            if event.event_name in self.LOW_RISK_EVENTS and event.read_only:
-                result.update({
-                    "should_analyze": False,
-                    "risk_level": "low",
-                    "filter_reason": "읽기 전용 저위험 이벤트"
-                })
-                return result
+            event_name = getattr(event, 'event_name', '')
+            error_code = getattr(event, 'error_code', '')
+            management_event = getattr(event, 'management_event', False)
             
-            # 2. 고위험 이벤트는 반드시 분석
-            if event.event_name in self.HIGH_RISK_EVENTS:
+            # 고위험 패턴 감지 시에만 Tier2로 전달
+            if event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "risk_level": "high",
-                    "filter_reason": "고위험 이벤트 감지"
+                    "filter_reason": "고위험 이벤트 감지 - Tier2 검증 필요"
                 })
-            
-            # 3. 에러 코드가 있는 경우 - 오탐 가능성이 높으나 재검증 필요
-            if event.error_code in self.FALSE_POSITIVE_ERROR_CODES:
+            elif event_name == "ConsoleLogin" and error_code:
                 result.update({
                     "should_analyze": True,
-                    "risk_level": "low",
-                    "filter_reason": "오탐 가능성 높은 에러 코드"
+                    "filter_reason": "콘솔 로그인 실패 감지 - Tier2 검증 필요"
                 })
-            
-            # 4. 성공한 관리 이벤트는 분석 필요
-            if event.management_event and not event.error_code:
+            elif management_event and not error_code and event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "risk_level": "high" if event.event_name in self.HIGH_RISK_EVENTS else "medium"
+                    "filter_reason": "고위험 관리 이벤트 - Tier2 검증 필요"
                 })
-            
-            # 5. 콘솔 로그인 실패는 반드시 분석
-            if event.event_name == "ConsoleLogin" and event.error_code:
-                result.update({
-                    "should_analyze": True,
-                    "risk_level": "high",
-                    "filter_reason": "콘솔 로그인 실패 감지"
-                })
-            
-            self.logger.info(f"Event {event.event_id} filtered: {result}")
+            # 그 외 모든 경우는 기본값 유지 (should_analyze=False, ML 판단 확정)
             
         except Exception as e:
-            self.logger.error(f"Error filtering event {event.event_id}: {str(e)}")
+            self.logger.error(f"Error filtering event {event.id}: {str(e)}")
+            # 에러 발생 시에는 안전하게 Tier2로 전달
             result.update({
                 "should_analyze": True,
-                "risk_level": "medium", 
-                "filter_reason": "필터링 중 오류 발생"
+                "filter_reason": "필터링 중 오류 발생 - 안전을 위해 Tier2 검증"
             })
         
         return result
@@ -147,13 +129,11 @@ class Tier1Filter:
         
         # 통계 로깅
         total_events = len(results)
-        high_risk_count = len([r for r in results if r["risk_level"] == "high"])
-        low_risk_count = len([r for r in results if r["risk_level"] == "low"])
         filtered_out_count = len([r for r in results if not r["should_analyze"]])
+        analyze_count = len([r for r in results if r["should_analyze"]])
         
         self.logger.info(f"Tier1 필터링 완료: 전체 {total_events}개, "
-                        f"고위험 {high_risk_count}개, 저위험 {low_risk_count}개, "
-                        f"필터링 제외 {filtered_out_count}개")
+                        f"분석 필요 {analyze_count}개, 필터링 제외 {filtered_out_count}개")
         
         return results
     
@@ -177,10 +157,10 @@ class Tier1Filter:
                 # 분석 필요한 이벤트 처리
                 # DB 저장으로 마무리
                 event_summary = convert_cloudtrail_to_text(event)
-                store_document(event_summary=event_summary, explanation=filter_result["filter_reason"], event_id=event["event_id"])
+                store_document(event_summary=event_summary, explanation=filter_result["filter_reason"], event_id=str(event.id))
                 
         except Exception as e:
-            self.logger.error(f"Error processing event {event.event_id}: {str(e)}")
+            self.logger.error(f"Error processing event {event.id}: {str(e)}")
     
     def process_events_batch(self, events: List[CloudTrailEvent]):
         """
@@ -210,7 +190,7 @@ class Tier1Filter:
                     future.result()  # 예외가 있으면 여기서 발생
                     processed_count += 1
                 except Exception as e:
-                    self.logger.error(f"Error processing event {event.event_id}: {str(e)}")
+                    self.logger.error(f"Error processing event {event.id}: {str(e)}")
                     event.is_false_positive = None  # 에러 시 None으로 설정
                     error_count += 1
         
@@ -262,3 +242,160 @@ class Tier1Filter:
         self.logger.info(f"비동기 배치 처리 완료: 전체 {len(events)}개, "
                         f"Tier2 분석 {tier2_analyzed}개, 분석 제외 {ignored_count}개, "
                         f"오류 {error_final_count}개 (최대 {self.max_workers} 동시 실행)")
+    
+    def process_ml_analysis_results(self, analysis_results: List[dict]):
+        """
+        ML이 정상으로 판단한 이벤트들에 대해 배치 처리로 추가 검증 필요성을 판단
+        
+        Args:
+            analysis_results: ML이 정상으로 판단한 이벤트들의 분석 결과 리스트
+        """
+        if not analysis_results:
+            self.logger.info("처리할 ML 분석 결과가 없습니다")
+            return
+        
+        start_time = datetime.now()
+        
+        try:
+            from app.services.filter_log_service import FilterLogService
+            filter_log_service = FilterLogService()
+            
+            # 배치 처리를 위한 통계 변수들
+            filter_log_data = []
+            processed_count = 0
+            threat_count = 0
+            false_positive_count = 0
+            error_count = 0
+            
+            # ThreadPoolExecutor를 사용한 병렬 필터링 처리
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                # 모든 분석 결과를 병렬로 제출
+                future_to_result = {
+                    executor.submit(self._process_single_ml_result, result): result 
+                    for result in analysis_results
+                }
+                
+                # 완료된 순서대로 결과 수집
+                for future in as_completed(future_to_result):
+                    original_result = future_to_result[future]
+                    try:
+                        processing_result = future.result()
+                        
+                        if processing_result is None:
+                            continue
+                            
+                        processed_count += 1
+                        
+                        # 통계 수집
+                        if processing_result.get('is_threat', False):
+                            threat_count += 1
+                        
+                        should_analyze = processing_result.get('should_analyze', True)
+                        
+                        if should_analyze:
+                            # Tier2 Agent로 전달하여 재검증
+                            print("검증")
+                            # try:
+                            #     event = original_result.get('event')
+                            #     confidence = processing_result.get('confidence', 0.0)
+                                
+                            #     # 이미 CloudTrailEvent이므로 바로 전달
+                            #     agent_result = process_security_event(event, confidence)
+                                
+                            #     # Agent 결과에 따른 처리 (필요시 추가 로직)
+                            #     # agent_result['is_false_positive'] 값 활용 가능
+                                
+                            # except Exception as e:
+                            #     # Tier2 Agent 오류는 중요하므로 로깅 유지
+                            #     event_id = processing_result.get('event_id', 'Unknown')
+                            #     self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
+                        else:
+                            # ML 판단 확정 = 정상으로 최종 확정
+                            false_positive_count += 1
+                            filter_log_data.append(processing_result.get('filter_data'))
+                            
+                    except Exception as e:
+                        # 개별 에러 로깅 제거 - 에러 카운트만 증가
+                        error_count += 1
+            
+            # filter_log 테이블에 저장 (정상으로 확정된 경우만)
+            tier2_count = processed_count - false_positive_count
+            save_success_count = 0
+            
+            if filter_log_data:
+                save_stats = filter_log_service.save_filter_results(filter_log_data)
+                save_success_count = save_stats.get('success', 0)
+            
+            # 처리 완료 통계 로깅
+            end_time = datetime.now()
+            processing_time = (end_time - start_time).total_seconds()
+            
+            # 성능 통계 계산
+            events_per_second = len(analysis_results) / processing_time if processing_time > 0 else 0
+            
+            self.logger.info(
+                f"Tier1 배치완료: {len(analysis_results)}개→{processed_count}개처리 "
+                f"({processing_time:.1f}초, {events_per_second:.0f}개/초) | "
+                f"정상확정:{false_positive_count} Tier2필요:{tier2_count} 오류:{error_count} 저장:{save_success_count}"
+            )
+            
+        except Exception as e:
+            self.logger.error(f"ML 분석 결과 배치 처리 중 치명적 오류: {e}")
+    
+    def _process_single_ml_result(self, result: dict) -> Optional[dict]:
+        """
+        단일 ML 분석 결과를 처리하는 헬퍼 함수 (병렬 처리용)
+        
+        Args:
+            result: 단일 ML 분석 결과
+            
+        Returns:
+            Optional[dict]: 처리 결과 또는 None (오류 시)
+        """
+        try:
+            event = result.get('event')
+            ml_prediction = result.get('ml_prediction', {})
+            
+            if not event or not ml_prediction:
+                return None
+            
+            # tier1 필터링 수행
+            filter_result = self.filter_event(event)
+            
+            is_threat = ml_prediction.get('is_threat', False)
+            confidence = ml_prediction.get('confidence', 0.0)
+            event_id = str(event.id) if event.id else ''
+            
+            # 필터링 결과 판단
+            should_analyze = filter_result.get('should_analyze', True)
+            filter_reason = filter_result.get('filter_reason', 'Unknown')
+            
+            processing_result = {
+                'event_id': event_id,
+                'is_threat': is_threat,
+                'confidence': confidence,
+                'should_analyze': should_analyze,
+                'filter_reason': filter_reason
+            }
+            
+            if not should_analyze:
+                # 정상으로 확정된 경우 filter_log 데이터 준비
+                filter_data = {
+                    "ml_log_id": event_id,  # ml_log의 id와 동일
+                    "filter_result": {
+                        "should_analyze": should_analyze,  # False
+                        "filter_reason": filter_reason,
+                        "ml_prediction": {
+                            "is_threat": is_threat,
+                            "confidence": confidence
+                        },
+                        "filter_timestamp": str(datetime.now())
+                    }
+                }
+                processing_result['filter_data'] = filter_data
+            
+            return processing_result
+            
+        except Exception as e:
+            # 개별 처리 오류는 로깅하지 않고 None 반환만
+            return None
