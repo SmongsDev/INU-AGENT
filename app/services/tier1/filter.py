@@ -295,11 +295,11 @@ class Tier1Filter:
                         if should_analyze:
                             # Tier2 Agent로 전달하여 재검증
                             print("검증")
+                            # 필요시 주석! (LangSmith 한도 초과)
                             # try:
                             #     event = original_result.get('event')
                             #     confidence = processing_result.get('confidence', 0.0)
                                 
-                            #     # 이미 CloudTrailEvent이므로 바로 전달
                             #     agent_result = process_security_event(event, confidence)
                                 
                             #     # Agent 결과에 따른 처리 (필요시 추가 로직)

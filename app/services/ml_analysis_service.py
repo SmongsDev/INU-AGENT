@@ -57,7 +57,7 @@ class MLAnalysisService:
             
             # ML 분석 수행
             results = self.predictor.predict_batch_optimized(ml_events, show_progress=True)
-            print(1 if results else 2)
+            
             if results:
                 # ML 결과를 ml_log 테이블에 저장
                 ml_log_data = []

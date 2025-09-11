@@ -51,7 +51,11 @@ class EventService:
                     )
                     
                     if last_sync_time:
-                        utc_time = last_sync_time.astimezone(timezone.utc)
+                        # DB에서 가져온 시간을 UTC로 명시적으로 처리
+                        if last_sync_time.tzinfo is None:
+                            utc_time = last_sync_time.replace(tzinfo=timezone.utc)
+                        else:
+                            utc_time = last_sync_time.astimezone(timezone.utc)
                         query = query.where(EventModel.created_at >= utc_time)
                     
                     # query = query.limit(10)  # 필요시 제한
