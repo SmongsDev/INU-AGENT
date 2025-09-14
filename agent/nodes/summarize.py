@@ -1,9 +1,8 @@
 from typing import TypedDict
-from app.schemas.cloudtrail import CloudTrailEvent
 from agent.nodes.rag.document_converter import convert_cloudtrail_to_text
 
 class State(TypedDict):
-    event: CloudTrailEvent
+    event: dict
     event_summary: str
 
 def summarize_event(state: State) -> State:

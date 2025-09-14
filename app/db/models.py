@@ -197,6 +197,7 @@ class aas(Base):
     group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
     flow_name = Column(String)
     flow_json = Column(JSONB)
+    thumbnail_s3_key = Column(String, nullable=True)
 
     # Relationships
     group = relationship("Group", back_populates="aas")

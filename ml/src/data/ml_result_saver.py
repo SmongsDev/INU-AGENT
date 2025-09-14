@@ -120,54 +120,96 @@ class MLResultSaver:
             for batch_start in range(0, len(results), batch_size):
                 batch = results[batch_start:batch_start + batch_size]
                 
-                for result in batch:
+                # 배치의 모든 event_id를 한번에 조회 (성능 최적화)
+                event_ids = [UUID(result['event_id']) for result in batch]
+                
+                # Event 테이블에서 존재하는 이벤트들을 한번에 조회
+                existing_events = session.query(Event.id).filter(Event.id.in_(event_ids)).all()
+                existing_event_ids = {event.id for event in existing_events}
+                
+                # MLLog 테이블에서 기존 로그들을 한번에 조회
+                existing_ml_logs = session.query(MLLog).filter(MLLog.id.in_(event_ids)).all()
+                existing_ml_log_dict = {log.id: log for log in existing_ml_logs}
+                
+                # 벌크 연산을 위한 데이터 준비
+                updates_data = []
+                inserts_data = []
+                
+                for idx, result in enumerate(batch):
                     try:
-                        event_id = result['event_id']
+                        event_id = UUID(result['event_id'])
                         severity = result['severity']
                         confidence = result['confidence']
                         result_data = result.get('result_data', {})
                         
-                        # 이벤트 존재 확인
-                        event = session.query(Event).filter(Event.id == UUID(event_id)).first()
-                        if not event:
+                        # 이벤트 존재 확인 (이미 조회된 결과 사용)
+                        if event_id not in existing_event_ids:
                             logger.error(f"이벤트를 찾을 수 없습니다: {event_id}")
                             stats['failed'] += 1
                             continue
                         
-                        # 기존 ML 로그 확인
-                        existing_ml_log = session.query(MLLog).filter(MLLog.id == UUID(event_id)).first()
-                        
-                        if existing_ml_log:
-                            # 기존 결과 업데이트
-                            existing_ml_log.severity = severity
-                            existing_ml_log.confidence = confidence
+                        # 기존 ML 로그 확인 (이미 조회된 결과 사용)
+                        if event_id in existing_ml_log_dict:
+                            # 업데이트용 데이터 준비
+                            updates_data.append({
+                                'id': event_id,
+                                'severity': severity,
+                                'confidence': confidence
+                            })
                             stats['updated'] += 1
                         else:
-                            # 새 ML 로그 생성
-                            ml_log = MLLog(
-                                id=UUID(event_id),
-                                event_id=UUID(event_id),
-                                severity=severity,
-                                confidence=confidence
-                            )
-                            session.add(ml_log)
+                            # 삽입용 데이터 준비
+                            inserts_data.append({
+                                'id': event_id,
+                                'event_id': event_id,
+                                'severity': severity,
+                                'confidence': confidence
+                            })
                             stats['created'] += 1
                         
                         stats['success'] += 1
                 
                     except Exception as e:
-                        logger.error(f"개별 결과 저장 실패: {e}")
+                        logger.error(f"개별 결과 준비 실패: {e}")
                         stats['failed'] += 1
                         continue
+                
+                # 벌크 연산 실행
+                # 업데이트는 직접 SQL로 처리 (진짜 벌크 연산)
+                if updates_data:
+                    # 같은 severity, confidence로 업데이트할 항목들을 그룹핑
+                    update_groups = {}
+                    for item in updates_data:
+                        key = (item['severity'], item['confidence'])
+                        if key not in update_groups:
+                            update_groups[key] = []
+                        update_groups[key].append(str(item['id']))
+                    
+                    # 그룹별로 단일 UPDATE 쿼리 실행
+                    from sqlalchemy import text
+                    for (severity, confidence), ids in update_groups.items():
+                        if ids:
+                            id_list = "','".join(ids)
+                            query = text(f"""
+                                UPDATE ml_log 
+                                SET severity = :severity, confidence = :confidence 
+                                WHERE id IN ('{id_list}')
+                            """)
+                            session.execute(query, {'severity': severity, 'confidence': confidence})
+                
+                # 벌크 삽입 (이미 효율적)
+                if inserts_data:
+                    session.bulk_insert_mappings(MLLog, inserts_data)
+                
+                # 배치마다 중간 커밋 (대용량 데이터 처리 최적화)
+                if (batch_start + batch_size) % (batch_size * 5) == 0:  # 5000개마다 커밋
+                    session.commit()
             
-            # 최종 커밋
+            # 최종 커밋 (남은 데이터)
             session.commit()
             
-            print(f"\n📊 배치 저장 완료:")
-            print(f"  성공: {stats['success']}개")
-            print(f"  실패: {stats['failed']}개")
-            print(f"  생성: {stats['created']}개")
-            print(f"  업데이트: {stats['updated']}개")
+            logger.info(f"ML 결과 배치 저장 완료: {len(results)}개 처리")
+            logger.info(f"성공: {stats['success']}개, 실패: {stats['failed']}개, 생성: {stats['created']}개, 업데이트: {stats['updated']}개")
             
             return stats
             

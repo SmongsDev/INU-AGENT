@@ -15,14 +15,16 @@ dotenv.load_dotenv()
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-    event: CloudTrailEvent
+    event: dict
     event_summary: str
     similar_events: list
     is_false_positive: bool
     explanation: str
+    ml_confidence: float
 
 class Input(TypedDict):
-    event: CloudTrailEvent
+    event: dict
+    ml_confidence: float
 
 class Output(TypedDict):
     is_false_positive: bool
@@ -47,11 +49,12 @@ def create_graph() -> StateGraph:
     return builder.compile()
 
 @traceable(name="process_security_event")
-def process_security_event(event: CloudTrailEvent) -> dict:
+def process_security_event(event: dict, confidence: float = 0.0) -> dict:
     """보안 이벤트를 처리하고 정오탐 여부를 반환합니다."""
     graph = create_graph()
     result = graph.invoke(input={
-    "event": event
+        "event": event,
+        "ml_confidence": confidence
     })
     return {
         "is_false_positive": result["is_false_positive"],

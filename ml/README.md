@@ -39,8 +39,6 @@ python run_analysis.py predict_file --model models/detector.pkl --file logs/clou
 # 배치 분석 (한 번만 실행)
 python run_analysis.py batch_analyzer --model models/detector.pkl --once
 
-# 모델 테스트
-python run_analysis.py test_detector
 ```
 
 ## 📖 상세 사용법
@@ -57,7 +55,6 @@ python run_analysis.py <script_name> [인수들]
 - `predict_threats` - 최적화된 위협 예측 분석 (DB 기반)
 - `predict_file` - 단일 로그 파일 위협 예측 분석
 - `batch_analyzer` - 배치 분석
-- `test_detector` - 모델 테스트
 
 ### 모델 훈련
 
@@ -249,7 +246,6 @@ ml/
 │   ├── core/                     # 핵심 ML 구성요소
 │   │   ├── cloudtrail_threat_detector.py  # ML 모델 클래스
 │   │   ├── train_model.py        # 모델 훈련 CLI
-│   │   └── test_detector.py      # 테스트 스위트
 │   ├── analysis/                 # 분석 도구들
 │   │   ├── predict_threats.py    # 위협 예측 CLI
 │   │   └── batch_analyzer.py     # 배치 분석기
@@ -267,11 +263,8 @@ ml/
 
 ### 테스트 실행
 ```bash
-# 통합 스크립트로 테스트
-python run_analysis.py test_detector
-
-# 직접 실행
-python -m src.core.test_detector
+# 통합 테스트 실행
+python test_integration.py
 ```
 
 ### Python 코드로 사용
