@@ -27,8 +27,8 @@ class EventService:
         try:
             db = next(get_db())
             try:
-                # last_sync_time = self.metadata_service.get_last_sync_time(self.group_id)
-                last_sync_time = datetime(2025, 9, 15, tzinfo=timezone.utc) # 테스트용
+                last_sync_time = self.metadata_service.get_last_sync_time(self.group_id)
+                # last_sync_time = datetime(2025, 9, 14, tzinfo=timezone.utc) # 테스트용
                 
                 start_time = datetime.now()
                 events_dict = []
