@@ -9,7 +9,21 @@ from botocore.exceptions import NoCredentialsError, ClientError
 class S3Service:
     def __init__(self):
         self.bucket_name = os.getenv("S3_BUCKET_NAME")
-        self.s3_client = boto3.client('s3', region_name='ap-northeast-2')
+
+        # Try to get AWS credentials from environment variables
+        aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+
+        if aws_access_key_id and aws_secret_access_key:
+            self.s3_client = boto3.client(
+                's3',
+                region_name='ap-northeast-2',
+                aws_access_key_id=aws_access_key_id,
+                aws_secret_access_key=aws_secret_access_key
+            )
+        else:
+            # Fall back to default credential chain (IAM role, etc.)
+            self.s3_client = boto3.client('s3', region_name='ap-northeast-2')
 
     def upload_base64_image(self, base64_data: str, file_extension: str = "png") -> Optional[str]:
         try:
