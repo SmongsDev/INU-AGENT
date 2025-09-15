@@ -9,7 +9,7 @@ from botocore.exceptions import NoCredentialsError, ClientError
 class S3Service:
     def __init__(self):
         self.bucket_name = os.getenv("S3_BUCKET_NAME")
-        self.s3_client = boto3.client('s3')
+        self.s3_client = boto3.client('s3', region_name='ap-northeast-2')
 
     def upload_base64_image(self, base64_data: str, file_extension: str = "png") -> Optional[str]:
         try:
@@ -47,4 +47,4 @@ class S3Service:
             return None
 
     def get_file_url(self, s3_key: str) -> str:
-        return f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+        return f"https://{self.bucket_name}.s3.ap-northeast-2.amazonaws.com/{s3_key}"
