@@ -296,19 +296,19 @@ class Tier1Filter:
                             # Tier2 Agent로 전달하여 재검증
                             print("검증")
                             # 필요시 주석! (LangSmith 한도 초과)
-                            # try:
-                            #     event = original_result.get('event')
-                            #     confidence = processing_result.get('confidence', 0.0)
+                            try:
+                                event = original_result.get('event')
+                                confidence = processing_result.get('confidence', 0.0)
                                 
-                            #     agent_result = process_security_event(event, confidence)
+                                agent_result = process_security_event(event, confidence)
                                 
-                            #     # Agent 결과에 따른 처리 (필요시 추가 로직)
-                            #     # agent_result['is_false_positive'] 값 활용 가능
+                                # Agent 결과에 따른 처리 (필요시 추가 로직)
+                                # agent_result['is_false_positive'] 값 활용 가능
                                 
-                            # except Exception as e:
-                            #     # Tier2 Agent 오류는 중요하므로 로깅 유지
-                            #     event_id = processing_result.get('event_id', 'Unknown')
-                            #     self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
+                            except Exception as e:
+                                # Tier2 Agent 오류는 중요하므로 로깅 유지
+                                event_id = processing_result.get('event_id', 'Unknown')
+                                self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
                         else:
                             # ML 판단 확정 = 정상으로 최종 확정
                             false_positive_count += 1
