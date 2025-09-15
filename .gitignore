@@ -140,7 +140,7 @@ last_sync_time.json
 
 # ML
 ml/data
-ml/models
+ml/models/tests
 ml/logs
 
 # claude
