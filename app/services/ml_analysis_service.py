@@ -125,18 +125,18 @@ class MLAnalysisService:
         if threat_events:
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Tier2 Agent 분석")
             # 필요시 주석! (LangSmith 한도 초과)
-            # for threat_result in threat_events:
-            #     try:
-            #         # 딕셔너리를 직접 Agent에 전달 (변환 불필요)
-            #         event_dict = threat_result.get('event_dict')
-            #         confidence = threat_result.get('ml_prediction', {}).get('confidence', 0.0)
+            for threat_result in threat_events:
+                try:
+                    # 딕셔너리를 직접 Agent에 전달 (변환 불필요)
+                    event_dict = threat_result.get('event_dict')
+                    confidence = threat_result.get('ml_prediction', {}).get('confidence', 0.0)
                     
-            #         # 딕셔너리를 직접 Agent에 전달
-            #         agent_result = process_security_event(event_dict, confidence)
-            #         logger.info(f"Agent 분석 완료: Event {event_dict.get('_event_id')} - 오탐여부: {agent_result['is_false_positive']}")
+                    # 딕셔너리를 직접 Agent에 전달
+                    agent_result = process_security_event(event_dict, confidence)
+                    logger.info(f"Agent 분석 완료: Event {event_dict.get('_event_id')} - 오탐여부: {agent_result['is_false_positive']}")
                     
-            #     except Exception as e:
-            #         logger.error(f"Tier2 Agent 분석 오류: {e}")
+                except Exception as e:
+                    logger.error(f"Tier2 Agent 분석 오류: {e}")
         
         # 2. ML 정상 판단 이벤트들 → Tier1 필터로 전달
         if normal_events and self.tier1_filter:
