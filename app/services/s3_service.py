@@ -44,7 +44,9 @@ class S3Service:
 
         except (NoCredentialsError, ClientError, Exception) as e:
             print(f"S3 upload error: {e}")
+            print(f"Bucket name: {self.bucket_name}")
+            print(f"S3 key: {s3_key}")
             return None
 
     def get_file_url(self, s3_key: str) -> str:
-        return f"https://{self.bucket_name}.s3.amazonaws.com/{s3_key}"
+        return f"https://{self.bucket_name}.s3.ap-northeast-2.amazonaws.com/{s3_key}"
