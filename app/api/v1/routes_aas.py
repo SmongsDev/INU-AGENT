@@ -37,8 +37,7 @@ def save_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return {
-        "message": "Agent draw saved successfully",
-        "thumbnail_url": s3_service.get_file_url(thumbnail_s3_key) if thumbnail_s3_key else None
+        "message": "Agent draw saved successfully"
     }
 
 @router.get("/agent_draw")
