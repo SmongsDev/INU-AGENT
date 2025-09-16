@@ -172,8 +172,9 @@ class FalsePositiveLog(Base):
 class FilterLog(Base):
     __tablename__ = "filter_log"
 
-    id     = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
-    result = Column(JSONB)
+    id        = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
+    result    = Column(JSONB)
+    is_threat = Column(Boolean, default=False)
 
     # Relationships
     ml_log = relationship("MLLog", back_populates="filter_logs")
