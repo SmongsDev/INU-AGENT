@@ -110,7 +110,56 @@ class Tier1Filter:
             })
         
         return result
-    
+
+    def filter_event_dict(self, event_dict: dict) -> dict:
+        """
+        딕셔너리 형태의 이벤트를 필터링하고 위험도 평가
+
+        Args:
+            event_dict: 이벤트 딕셔너리
+
+        Returns:
+            dict: 필터링 결과 및 위험도 정보
+        """
+        result = {
+            "event_id": event_dict.get('_event_id', ''),
+            "should_analyze": False,  # 기본값: ML 정상 판단 확정
+            "filter_reason": "ML 정상 판단 확정"
+        }
+
+        try:
+            event_name = event_dict.get('event_name', '')
+            error_code = event_dict.get('error_code', '')
+            management_event = event_dict.get('management_event', False)
+
+            # 고위험 패턴 감지 시에만 Tier2로 전달
+            if event_name in self.HIGH_RISK_EVENTS:
+                result.update({
+                    "should_analyze": True,
+                    "filter_reason": "고위험 이벤트 감지"
+                })
+            elif event_name == "ConsoleLogin" and error_code:
+                result.update({
+                    "should_analyze": True,
+                    "filter_reason": "콘솔 로그인 실패 감지"
+                })
+            elif management_event and not error_code and event_name in self.HIGH_RISK_EVENTS:
+                result.update({
+                    "should_analyze": True,
+                    "filter_reason": "고위험 관리 이벤트"
+                })
+            # 그 외 모든 경우는 기본값 유지 (should_analyze=False, ML 판단 확정)
+
+        except Exception as e:
+            self.logger.error(f"Error filtering event dict {event_dict.get('_event_id', 'Unknown')}: {str(e)}")
+            # 에러 발생 시에는 안전하게 Tier2로 전달
+            result.update({
+                "should_analyze": True,
+                "filter_reason": "필터링 중 오류 발생"
+            })
+
+        return result
+
     def filter_events(self, events: List[CloudTrailEvent]) -> List[dict]:
         """
         여러 CloudTrail 이벤트를 배치로 필터링
@@ -294,21 +343,22 @@ class Tier1Filter:
                         
                         if should_analyze:
                             # Tier2 Agent로 전달하여 재검증
-                            print("검증")
+                            # 다시 되돌릴 예정
+                            filter_log_data.append(processing_result.get('filter_data'))
                             # 필요시 주석! (LangSmith 한도 초과)
-                            try:
-                                event = original_result.get('event')
-                                confidence = processing_result.get('confidence', 0.0)
+                            # try:
+                            #     event = original_result.get('event')
+                            #     confidence = processing_result.get('confidence', 0.0)
                                 
-                                agent_result = process_security_event(event, confidence)
+                            #     agent_result = process_security_event(event, confidence)
                                 
-                                # Agent 결과에 따른 처리 (필요시 추가 로직)
-                                # agent_result['is_false_positive'] 값 활용 가능
+                            #     # Agent 결과에 따른 처리 (필요시 추가 로직)
+                            #     # agent_result['is_false_positive'] 값 활용 가능
                                 
-                            except Exception as e:
-                                # Tier2 Agent 오류는 중요하므로 로깅 유지
-                                event_id = processing_result.get('event_id', 'Unknown')
-                                self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
+                            # except Exception as e:
+                            #     # Tier2 Agent 오류는 중요하므로 로깅 유지
+                            #     event_id = processing_result.get('event_id', 'Unknown')
+                            #     self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
                         else:
                             # ML 판단 확정 = 정상으로 최종 확정
                             false_positive_count += 1
@@ -353,18 +403,18 @@ class Tier1Filter:
             Optional[dict]: 처리 결과 또는 None (오류 시)
         """
         try:
-            event = result.get('event')
+            event_dict = result.get('event_dict')
             ml_prediction = result.get('ml_prediction', {})
-            
-            if not event or not ml_prediction:
+
+            if not event_dict or not ml_prediction:
                 return None
-            
-            # tier1 필터링 수행
-            filter_result = self.filter_event(event)
+
+            # 딕셔너리 기반으로 필터링 수행
+            filter_result = self.filter_event_dict(event_dict)
             
             is_threat = ml_prediction.get('is_threat', False)
             confidence = ml_prediction.get('confidence', 0.0)
-            event_id = str(event.id) if event.id else ''
+            event_id = event_dict.get('_event_id', '')
             
             # 필터링 결과 판단
             should_analyze = filter_result.get('should_analyze', True)
@@ -377,22 +427,23 @@ class Tier1Filter:
                 'should_analyze': should_analyze,
                 'filter_reason': filter_reason
             }
-            
-            if not should_analyze:
-                # 정상으로 확정된 경우 filter_log 데이터 준비
-                filter_data = {
-                    "ml_log_id": event_id,  # ml_log의 id와 동일
-                    "filter_result": {
-                        "should_analyze": should_analyze,  # False
-                        "filter_reason": filter_reason,
-                        "ml_prediction": {
-                            "is_threat": is_threat,
-                            "confidence": confidence
-                        },
-                        "filter_timestamp": str(datetime.now())
-                    }
-                }
-                processing_result['filter_data'] = filter_data
+            # 다시 되돌릴 예정
+            # if not should_analyze:
+            # 정상으로 확정된 경우 filter_log 데이터 준비
+            filter_data = {
+                "ml_log_id": event_id,  # ml_log의 id와 동일
+                "filter_result": {
+                    "should_analyze": should_analyze,  # False
+                    "filter_reason": filter_reason,
+                    "ml_prediction": {
+                        "is_threat": is_threat,
+                        "confidence": confidence
+                    },
+                    "filter_timestamp": str(datetime.now())
+                },
+                "is_threat": is_threat  # False (ML이 정상으로 판단)
+            }
+            processing_result['filter_data'] = filter_data
             
             return processing_result
             

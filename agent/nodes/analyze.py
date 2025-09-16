@@ -11,7 +11,7 @@ class State(TypedDict):
     explanation: str
 
 def load_prompt_template() -> str:
-    with open("prompts/analyze_prompt.txt", "r") as f:
+    with open("prompts/analyze_prompt.txt", "r", encoding="utf-8") as f:
         return f.read()
 
 def analyze_event(state: State) -> State:
