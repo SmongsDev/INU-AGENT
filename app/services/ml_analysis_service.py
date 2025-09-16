@@ -202,6 +202,7 @@ class MLAnalysisService:
                     "filter_result": {
                         "should_analyze": True,
                         "filter_reason": "ML 위협 탐지",
+                        "risk_level": "high",
                         "ml_prediction": {
                             "is_threat": ml_prediction.get('is_threat', True),
                             "confidence": ml_prediction.get('confidence', 0.0)

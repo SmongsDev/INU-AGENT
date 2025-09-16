@@ -1,13 +1,8 @@
-import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
 from datetime import datetime
-from app.schemas.cloudtrail import CloudTrailEvent
 from ml.src.data.ml_result_saver import MLResultSaver
 from app.core.logger import get_logger
-from agent.graph import process_security_event
-from agent.nodes.store import store_document, store_false_positive, update_false_positive_status
-from agent.nodes.rag.document_converter import convert_cloudtrail_to_text
 
 logger = get_logger(__name__)
 
@@ -19,22 +14,116 @@ class Tier1Filter:
     
     # 위험도가 높은 이벤트 패턴들
     HIGH_RISK_EVENTS = {
+        # 역할 및 권한 관련
         "AssumeRole",
-        "AssumeRoleWithSAML", 
+        "AssumeRoleWithSAML",
         "AssumeRoleWithWebIdentity",
+        "CreateRole",
+        "DeleteRole",
+        "AttachRolePolicy",
+        "DetachRolePolicy",
+        "PutRolePolicy",
+        "DeleteRolePolicy",
+
+        # 사용자 및 그룹 관리
         "CreateUser",
         "DeleteUser",
         "AttachUserPolicy",
         "DetachUserPolicy",
-        "CreateRole",
-        "DeleteRole",
-        "PutBucketPolicy",
-        "DeleteBucket",
+        "PutUserPolicy",
+        "DeleteUserPolicy",
+        "CreateGroup",
+        "DeleteGroup",
+        "AttachGroupPolicy",
+        "DetachGroupPolicy",
+        "AddUserToGroup",
+        "RemoveUserFromGroup",
+
+        # 액세스 키 관리
         "CreateAccessKey",
         "DeleteAccessKey",
-        "ConsoleLogin"
+        "UpdateAccessKey",
+
+        # S3 보안 관련
+        "PutBucketPolicy",
+        "DeleteBucket",
+        "PutBucketAcl",
+        "PutObjectAcl",
+        "PutBucketPublicAccessBlock",
+        "DeleteBucketPublicAccessBlock",
+
+        # 네트워크 보안
+        "CreateSecurityGroup",
+        "DeleteSecurityGroup",
+        "AuthorizeSecurityGroupIngress",
+        "AuthorizeSecurityGroupEgress",
+        "RevokeSecurityGroupIngress",
+        "RevokeSecurityGroupEgress",
+        "CreateVpc",
+        "DeleteVpc",
+        "CreateInternetGateway",
+        "AttachInternetGateway",
+
+        # 인증 및 로그인
+        "ConsoleLogin",
+        "AssumeRoleFailure",
+        "ConsoleLoginFailure",
+
+        # 암호화 및 키 관리
+        "CreateKey",
+        "DeleteKey",
+        "DisableKey",
+        "EnableKey",
+        "ScheduleKeyDeletion",
+        "CancelKeyDeletion",
+        "PutKeyPolicy",
+
+        # 로깅 및 모니터링 우회 (가장 위험)
+        "StopLogging",
+        "DeleteTrail",
+        "PutEventSelectors",
+        "DeleteConfigRule",
+        "StopConfigurationRecorder"
     }
-    
+
+    # 정상 운영에서 자주 발생하지만 모니터링이 필요한 이벤트들
+    MEDIUM_RISK_EVENTS = {
+        # 인스턴스 및 리소스 관리 (정상 운영에서 자주 발생)
+        "RunInstances",
+        "TerminateInstances",
+        "CreateImage",
+        "CreateSnapshot",
+        "ModifyImageAttribute",
+        "ModifySnapshotAttribute",
+
+        # 데이터베이스 운영 (정상 운영에서 발생)
+        "CreateDBCluster",
+        "DeleteDBCluster",
+        "ModifyDBCluster",
+        "CreateDBInstance",
+        "DeleteDBInstance",
+        "ModifyDBInstance",
+
+        # Lambda 운영 (CI/CD에서 자주 발생)
+        "CreateFunction",
+        "DeleteFunction",
+        "UpdateFunctionCode",
+        "UpdateFunctionConfiguration",
+        "AddPermission",
+        "RemovePermission",
+
+        # S3 운영 작업
+        "PutObject",
+        "DeleteObject",
+        "CreateBucket",
+
+        # 일반적인 네트워킹 (정상 운영)
+        "CreateRoute",
+        "DeleteRoute",
+        "CreateSubnet",
+        "DeleteSubnet"
+    }
+
     # 일반적으로 무시할 수 있는 읽기 전용 이벤트들
     LOW_RISK_EVENTS = {
         "DescribeInstances",
@@ -62,54 +151,6 @@ class Tier1Filter:
         self.max_workers = max_workers
         self.ml_result_saver = MLResultSaver()
     
-    def filter_event(self, event: CloudTrailEvent) -> dict:
-        """
-        단일 CloudTrail 이벤트를 필터링하고 위험도 평가
-        
-        Args:
-            event: CloudTrail 이벤트 객체
-            
-        Returns:
-            dict: 필터링 결과 및 위험도 정보
-        """
-        result = {
-            "event_id": event.id,
-            "should_analyze": False,  # 기본값: ML 정상 판단 확정
-            "filter_reason": "ML 정상 판단 확정"
-        }
-        
-        try:
-            event_name = getattr(event, 'event_name', '')
-            error_code = getattr(event, 'error_code', '')
-            management_event = getattr(event, 'management_event', False)
-            
-            # 고위험 패턴 감지 시에만 Tier2로 전달
-            if event_name in self.HIGH_RISK_EVENTS:
-                result.update({
-                    "should_analyze": True,
-                    "filter_reason": "고위험 이벤트 감지 - Tier2 검증 필요"
-                })
-            elif event_name == "ConsoleLogin" and error_code:
-                result.update({
-                    "should_analyze": True,
-                    "filter_reason": "콘솔 로그인 실패 감지 - Tier2 검증 필요"
-                })
-            elif management_event and not error_code and event_name in self.HIGH_RISK_EVENTS:
-                result.update({
-                    "should_analyze": True,
-                    "filter_reason": "고위험 관리 이벤트 - Tier2 검증 필요"
-                })
-            # 그 외 모든 경우는 기본값 유지 (should_analyze=False, ML 판단 확정)
-            
-        except Exception as e:
-            self.logger.error(f"Error filtering event {event.id}: {str(e)}")
-            # 에러 발생 시에는 안전하게 Tier2로 전달
-            result.update({
-                "should_analyze": True,
-                "filter_reason": "필터링 중 오류 발생 - 안전을 위해 Tier2 검증"
-            })
-        
-        return result
 
     def filter_event_dict(self, event_dict: dict) -> dict:
         """
@@ -136,162 +177,122 @@ class Tier1Filter:
             if event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "고위험 이벤트 감지"
+                    "filter_reason": "고위험 이벤트 감지",
+                    "risk_level": "high"
                 })
             elif event_name == "ConsoleLogin" and error_code:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "콘솔 로그인 실패 감지"
+                    "filter_reason": "콘솔 로그인 실패 감지",
+                    "risk_level": "high"
                 })
             elif management_event and not error_code and event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "고위험 관리 이벤트"
+                    "filter_reason": "고위험 관리 이벤트",
+                    "risk_level": "high"
                 })
+            elif event_name in self.MEDIUM_RISK_EVENTS:
+                # 중위험 이벤트는 시간대나 컨텍스트에 따라 분석 여부 결정
+                should_analyze_medium = self._should_analyze_medium_risk_event(event_dict)
+                if should_analyze_medium:
+                    result.update({
+                        "should_analyze": True,
+                        "filter_reason": f"중위험 이벤트 의심 상황: {should_analyze_medium}",
+                        "risk_level": "medium"
+                    })
+                else:
+                    result.update({
+                        "risk_level": "medium"
+                    })
+            # elif event_name in self.LOW_RISK_EVENTS:
+            #     result.update({
+            #         "risk_level": "low"
+            #     })
             # 그 외 모든 경우는 기본값 유지 (should_analyze=False, ML 판단 확정)
+            else:
+                result.update({
+                    "risk_level": "low"
+                })
 
         except Exception as e:
             self.logger.error(f"Error filtering event dict {event_dict.get('_event_id', 'Unknown')}: {str(e)}")
             # 에러 발생 시에는 안전하게 Tier2로 전달
             result.update({
                 "should_analyze": True,
-                "filter_reason": "필터링 중 오류 발생"
+                "filter_reason": "필터링 중 오류 발생",
+                "risk_level": "unknown"
             })
 
         return result
 
-    def filter_events(self, events: List[CloudTrailEvent]) -> List[dict]:
+    def _should_analyze_medium_risk_event(self, event_dict: dict) -> str:
         """
-        여러 CloudTrail 이벤트를 배치로 필터링
-        
+        중위험 이벤트에 대해 추가 분석이 필요한지 판단
+
         Args:
-            events: CloudTrail 이벤트 리스트
-            
+            event_dict: 이벤트 딕셔너리
+
         Returns:
-            List[dict]: 필터링 결과 리스트
+            str: 분석이 필요한 이유 (빈 문자열이면 분석 불필요)
         """
-        results = []
-        
-        for event in events:
-            filter_result = self.filter_event(event)
-            results.append(filter_result)
-        
-        # 통계 로깅
-        total_events = len(results)
-        filtered_out_count = len([r for r in results if not r["should_analyze"]])
-        analyze_count = len([r for r in results if r["should_analyze"]])
-        
-        self.logger.info(f"Tier1 필터링 완료: 전체 {total_events}개, "
-                        f"분석 필요 {analyze_count}개, 필터링 제외 {filtered_out_count}개")
-        
-        return results
-    
-    def process_single_event(self, event: CloudTrailEvent):
-        """
-        단일 이벤트를 처리하고 적절한 함수로 라우팅 (리턴값 없음)
-        
-        Args:
-            event: CloudTrail 이벤트 객체
-        """
-        # Tier1 필터링 실행
-        filter_result = self.filter_event(event)
-        
         try:
-            if not filter_result["should_analyze"]:
-                # 분석 불필요한 이벤트 처리
-                result = process_security_event(event)
-                update_false_positive_status(event, False)
-                print(result)
-            else:
-                # 분석 필요한 이벤트 처리
-                # DB 저장으로 마무리
-                event_summary = convert_cloudtrail_to_text(event)
-                store_document(event_summary=event_summary, explanation=filter_result["filter_reason"], event_id=str(event.id))
-                
-        except Exception as e:
-            self.logger.error(f"Error processing event {event.id}: {str(e)}")
-    
-    def process_events_batch(self, events: List[CloudTrailEvent]):
-        """
-        여러 이벤트를 병렬로 배치 처리 (리턴값 없음)
-        
-        Args:
-            events: CloudTrail 이벤트 리스트
-        """
-        if not events:
-            return
-        
-        processed_count = 0
-        error_count = 0
-        
-        # ThreadPoolExecutor를 사용한 병렬 처리
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            # 모든 이벤트를 병렬로 제출
-            future_to_event = {
-                executor.submit(self.process_single_event, event): event 
-                for event in events
-            }
-            
-            # 완료된 순서대로 결과 수집
-            for future in as_completed(future_to_event):
-                event = future_to_event[future]
+            event_time = event_dict.get('event_time', '')
+            user_identity = event_dict.get('user_identity', {})
+            source_ip = event_dict.get('source_ip_address', '')
+            event_name = event_dict.get('event_name', '')
+
+            # 시간대 기반 분석 (업무 시간 외)
+            if event_time:
                 try:
-                    future.result()  # 예외가 있으면 여기서 발생
-                    processed_count += 1
-                except Exception as e:
-                    self.logger.error(f"Error processing event {event.id}: {str(e)}")
-                    event.is_false_positive = None  # 에러 시 None으로 설정
-                    error_count += 1
-        
-        # 처리 완료 후 통계 계산
-        tier2_analyzed = len([e for e in events if e.is_false_positive is not None and e.is_false_positive is not True])
-        ignored_count = len([e for e in events if e.is_false_positive is True])
-        error_final_count = len([e for e in events if e.is_false_positive is None])
-        
-        self.logger.info(f"병렬 배치 처리 완료: 전체 {len(events)}개, "
-                        f"Tier2 분석 {tier2_analyzed}개, 분석 제외 {ignored_count}개, "
-                        f"오류 {error_final_count}개 (최대 {self.max_workers} 워커 사용)")
-    
-    async def process_events_batch_async(self, events: List[CloudTrailEvent]):
-        """
-        여러 이벤트를 비동기로 배치 처리 (리턴값 없음)
-        
-        Args:
-            events: CloudTrail 이벤트 리스트
-        """
-        if not events:
-            return
-        
-        # 세마포어로 동시 실행 수 제한
-        semaphore = asyncio.Semaphore(self.max_workers)
-        
-        async def process_with_semaphore(event: CloudTrailEvent):
-            async with semaphore:
-                # CPU 집약적 작업을 스레드 풀에서 실행
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(None, self.process_single_event, event)
-        
-        # 모든 이벤트를 비동기로 처리
-        tasks = [process_with_semaphore(event) for event in events]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
-        # 예외 처리
-        error_count = 0
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
-                self.logger.error(f"Error processing event {events[i].event_id}: {str(result)}")
-                events[i].is_false_positive = None  # 에러 시 None으로 설정
-                error_count += 1
-        
-        # 처리 완료 후 통계 계산
-        tier2_analyzed = len([e for e in events if e.is_false_positive is not None and e.is_false_positive is not True])
-        ignored_count = len([e for e in events if e.is_false_positive is True])
-        error_final_count = len([e for e in events if e.is_false_positive is None])
-        
-        self.logger.info(f"비동기 배치 처리 완료: 전체 {len(events)}개, "
-                        f"Tier2 분석 {tier2_analyzed}개, 분석 제외 {ignored_count}개, "
-                        f"오류 {error_final_count}개 (최대 {self.max_workers} 동시 실행)")
-    
+                    from datetime import datetime
+                    # ISO 형식 시간 파싱 시도
+                    if 'T' in event_time:
+                        dt = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
+                        hour = dt.hour
+
+                        # 업무시간 외 (밤 10시 ~ 오전 6시) 활동
+                        if hour >= 22 or hour <= 6:
+                            return "업무시간 외 활동"
+
+                        # 주말 활동 체크 (간단히 구현)
+                        weekday = dt.weekday()
+                        if weekday >= 5:  # 토요일(5), 일요일(6)
+                            return "주말 활동"
+
+                except:
+                    pass
+
+            # 의심스러운 IP 패턴 (간단한 체크)
+            if source_ip:
+                # 외부 IP에서의 운영 작업
+                if not source_ip.startswith(('10.', '172.', '192.168.')):
+                    return "외부 IP에서의 운영 작업"
+
+            # 특정 사용자 타입 체크
+            if user_identity:
+                user_type = user_identity.get('type', '')
+                user_name = user_identity.get('userName', '')
+
+                # 루트 사용자의 운영 작업
+                if user_type == 'Root':
+                    return "루트 사용자 활동"
+
+                # 임시 자격증명의 운영 작업
+                if user_type == 'AssumedRole' and 'temp' in user_name.lower():
+                    return "임시 자격증명 운영 작업"
+
+            # 에러가 있는 중위험 이벤트
+            error_code = event_dict.get('error_code', '')
+            if error_code:
+                return f"운영 작업 실패: {error_code}"
+
+            return ""  # 분석 불필요
+
+        except Exception as e:
+            # 에러 발생 시 안전하게 분석 필요로 판단
+            return "컨텍스트 분석 오류"
+
     def process_ml_analysis_results(self, analysis_results: List[dict]):
         """
         ML이 정상으로 판단한 이벤트들에 대해 배치 처리로 추가 검증 필요성을 판단
@@ -419,13 +420,15 @@ class Tier1Filter:
             # 필터링 결과 판단
             should_analyze = filter_result.get('should_analyze', True)
             filter_reason = filter_result.get('filter_reason', 'Unknown')
-            
+            risk_level = filter_result.get('risk_level', 'unknown')
+
             processing_result = {
                 'event_id': event_id,
                 'is_threat': is_threat,
                 'confidence': confidence,
                 'should_analyze': should_analyze,
-                'filter_reason': filter_reason
+                'filter_reason': filter_reason,
+                'risk_level': risk_level
             }
             # 다시 되돌릴 예정
             # if not should_analyze:
@@ -435,6 +438,7 @@ class Tier1Filter:
                 "filter_result": {
                     "should_analyze": should_analyze,  # False
                     "filter_reason": filter_reason,
+                    "risk_level": risk_level,
                     "ml_prediction": {
                         "is_threat": is_threat,
                         "confidence": confidence
