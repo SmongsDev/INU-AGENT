@@ -97,25 +97,7 @@ class CloudTrailThreatDetector:
         features['source_ip'] = log_event.get('sourceIPAddress', 'unknown')
         features['user_agent'] = log_event.get('userAgent', 'unknown')
         
-        # 시간 특성
-        event_time_str = log_event.get('eventTime')
-        if event_time_str:
-            try:
-                event_time = datetime.fromisoformat(event_time_str.replace('Z', '+00:00'))
-                features['hour'] = event_time.hour
-                features['day_of_week'] = event_time.weekday()
-                features['is_weekend'] = event_time.weekday() >= 5
-                features['is_night_time'] = event_time.hour < 6 or event_time.hour > 22
-            except:
-                features['hour'] = 12
-                features['day_of_week'] = 1
-                features['is_weekend'] = False
-                features['is_night_time'] = False
-        else:
-            features['hour'] = 12
-            features['day_of_week'] = 1
-            features['is_weekend'] = False
-            features['is_night_time'] = False
+        # 시간 특성 제거 (AWS 시간대 불일치 문제로 인해)
         
         # 에러 특성
         features['has_error_code'] = 'errorCode' in log_event
@@ -182,17 +164,15 @@ class CloudTrailThreatDetector:
             if features['is_access_denied'] and features['has_suspicious_resource']:
                 is_threat = True
             
-            # 규칙 4: 심야시간 + 프로그래매틱 + 고위험 액션
-            if (features['is_night_time'] and 
-                features['is_programmatic'] and 
+            # 규칙 4: 프로그래매틱 + 고위험 액션 (시간 조건 제거)
+            if (features['is_programmatic'] and
                 features['is_high_risk_action']):
                 is_threat = True
             
-            # 규칙 5: 다중 의심 지표
+            # 규칙 5: 다중 의심 지표 (시간 관련 제거)
             suspicious_count = sum([
                 features['has_error_code'],
                 features['is_programmatic'],
-                features['is_night_time'],
                 features['is_high_risk_action'],
                 features['has_suspicious_resource']
             ])

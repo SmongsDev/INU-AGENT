@@ -18,7 +18,7 @@ class MLAnalysisService:
     
     def __init__(self, model_path: str = None):
         if model_path is None:
-            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "cloudTrail_v1.pkl")
+            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "threat_model.pkl")
         self.model_path = model_path
         self.predictor = None
         self.result_saver = None
