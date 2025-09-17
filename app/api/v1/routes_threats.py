@@ -125,8 +125,6 @@ def get_threats(
     token: str = Query(..., description="인증 토큰"),
     db: Session = Depends(get_db),
     risk_level: Optional[str] = Query(None, description="필터링할 위험도 레벨 (high, medium, low, ml_detected, unknown)"),
-    is_threat: Optional[bool] = Query(None, description="위협 여부로 필터링"),
-    should_analyze: Optional[bool] = Query(None, description="분석 필요 여부로 필터링"),
     limit: Optional[int] = Query(None, description="반환할 최대 레코드 수")
 ):
     # 토큰 검증
@@ -155,13 +153,6 @@ def get_threats(
 
         # 필터링 조건 적용
         filters = []
-
-        if is_threat is not None:
-            filters.append(FilterLog.is_threat == is_threat)
-
-        if should_analyze is not None:
-            # JSONB 필드에서 should_analyze 값 확인
-            filters.append(FilterLog.result['should_analyze'].astext.cast(db.Boolean) == should_analyze)
 
         if risk_level is not None:
             # JSONB 필드에서 risk_level 값 확인
