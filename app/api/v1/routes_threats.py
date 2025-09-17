@@ -143,7 +143,11 @@ def get_threats(
             CloudTrail.event_name,
             CloudTrail.event_time,
             CloudTrail.source_ip.label('cloudtrail_source_ip'),
-            CloudTrail.user_identity
+            CloudTrail.user_identity,
+            CloudTrail.aws_region,
+            CloudTrail.event_source,
+            CloudTrail.user_agent,
+            CloudTrail.request_parameters
         ).join(
             MLLog, FilterLog.id == MLLog.id
         ).join(
@@ -167,7 +171,7 @@ def get_threats(
 
         # 응답 데이터 구성
         threat_data = []
-        for filter_log, event_id, confidence, event_source_ip, created_at, event_name, event_time, cloudtrail_source_ip, user_identity in results:
+        for filter_log, event_id, confidence, event_source_ip, created_at, event_name, event_time, cloudtrail_source_ip, user_identity, aws_region, event_source, user_agent, request_parameters in results:
             # filter_log.result에서 추가 정보 추출
             result_data = filter_log.result or {}
             ml_prediction = result_data.get('ml_prediction', {})
@@ -182,15 +186,21 @@ def get_threats(
             threat_item = {
                 "event_id": str(event_id),
 
-                # CloudTrail 정보 (요청된 필드들)
+                # CloudTrail 정보 (기존 필드들)
                 "event_name": event_name,
                 "source_ip_address": str(cloudtrail_source_ip) if cloudtrail_source_ip else str(event_source_ip) if event_source_ip else None,
                 "event_time": event_time.isoformat() if event_time else created_at.isoformat() if created_at else None,
 
-                # 새로 추가된 필드들
+                # 새로 추가된 CloudTrail 필드들
+                "aws_region": aws_region,
+                "event_source": event_source,
+                "user_agent": user_agent,
+                "request_parameters": request_parameters,
+
+                # 기존 필드들
                 "role_name": role_name,
                 "predicted_threats": predicted_threats,
-                
+
                 # 전체 result 데이터도 포함
                 "filter_result": result_data,
 

@@ -241,7 +241,7 @@ def main():
     parser.add_argument(
         '--output', 
         type=str, 
-        default='ml/models/cloudtrail_threat_0901.pkl',
+        default='models/threat_model.pkl',
         help='훈련된 모델을 저장할 경로 (기본값: ml/models/cloudtrail_threat_detector.pkl)'
     )
     
