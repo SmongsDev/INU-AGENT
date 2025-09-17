@@ -89,6 +89,7 @@ def extract_role_name(user_identity: dict) -> str:
     except Exception:
         return "Unknown"
 
+# 임시로 구현한 함수
 def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
     """
     ML 예측 결과를 사용자 친화적 형태로 포맷
