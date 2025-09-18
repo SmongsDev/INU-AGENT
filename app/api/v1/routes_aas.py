@@ -68,6 +68,34 @@ def get_agent_draw(
         "thumbnail_url": thumbnail_url
     }
 
+@router.post("/agent_draw/update")
+def update_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
+    group_id = get_group_id_from_token(request.token, db)
+
+    existing_aas = db.query(aas).filter(
+        aas.group_id == group_id,
+        aas.flow_name == request.flow_name
+    ).first()
+
+    if not existing_aas:
+        raise HTTPException(status_code=404, detail="Agent draw not found")
+
+    thumbnail_s3_key = existing_aas.thumbnail_s3_key
+    if request.thumbnail_image:
+        s3_service = S3Service()
+        new_thumbnail_s3_key = s3_service.upload_base64_image(request.thumbnail_image)
+        if not new_thumbnail_s3_key:
+            raise HTTPException(status_code=500, detail="Failed to upload thumbnail image to S3")
+        thumbnail_s3_key = new_thumbnail_s3_key
+
+    existing_aas.flow_json = request.flow_json
+    existing_aas.thumbnail_s3_key = thumbnail_s3_key
+    db.commit()
+
+    return {
+        "message": "Agent draw updated successfully"
+    }
+
 @router.get("/agent_draws")
 def get_all_agent_draws(token: str = Query(...), db: Session = Depends(get_db)):
     group_id = get_group_id_from_token(token, db)
