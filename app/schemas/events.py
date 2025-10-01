@@ -27,7 +27,6 @@ class FalsePositiveLog(BaseModel):
 class FilterLog(BaseModel):
     id: UUID = Field(description="로그 ID")
     result: Dict[str, Any] = Field(description="필터링 결과")
-    is_threat: bool = Field(default=False, description="위협 여부")
 
 class Document(BaseModel):
     id: UUID = Field(description="문서 ID")

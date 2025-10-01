@@ -90,13 +90,12 @@ def extract_role_name(user_identity: dict) -> str:
         return "Unknown"
 
 # 임시로 구현한 함수
-def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
+def format_predicted_threat(ml_prediction: dict) -> str:
     """
     ML 예측 결과를 사용자 친화적 형태로 포맷
 
     Args:
         ml_prediction: ML 예측 데이터
-        risk_level: 위험도 레벨
 
     Returns:
         str: 포맷된 위협 예측 문자열
@@ -108,16 +107,8 @@ def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
     confidence = ml_prediction.get('confidence', 0.0)
     confidence_pct = int(confidence * 100)
 
-    if risk_level == "ml_detected":
-        return f"ML Detected Threat ({confidence_pct}%)"
-    elif is_threat:
-        return f"High Threat ({confidence_pct}%)"
-    elif risk_level == "high":
-        return f"High Risk Pattern ({confidence_pct}%)"
-    elif risk_level == "medium":
-        return f"Medium Risk ({confidence_pct}%)"
-    elif risk_level == "low":
-        return f"Low Risk ({confidence_pct}%)"
+    if is_threat:
+        return f"Threat Detected ({confidence_pct}%)"
     else:
         return f"Normal ({confidence_pct}%)"
 
@@ -125,7 +116,6 @@ def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
 def get_threats(
     token: str = Query(..., description="인증 토큰"),
     db: Session = Depends(get_db),
-    risk_level: Optional[str] = Query(None, description="필터링할 위험도 레벨 (high, medium, low, ml_detected, unknown)"),
     limit: Optional[int] = Query(None, description="반환할 최대 레코드 수")
 ):
     # 토큰 검증
@@ -156,16 +146,6 @@ def get_threats(
             CloudTrail, Event.id == CloudTrail.id
         )
 
-        # 필터링 조건 적용
-        filters = []
-
-        if risk_level is not None:
-            # JSONB 필드에서 risk_level 값 확인
-            filters.append(FilterLog.result['risk_level'].astext == risk_level)
-
-        if filters:
-            query = query.filter(and_(*filters))
-
         # 최신 순으로 정렬하고 limit 적용
         results = query.order_by(Event.created_at.desc()).limit(limit).all()
 
@@ -175,13 +155,12 @@ def get_threats(
             # filter_log.result에서 추가 정보 추출
             result_data = filter_log.result or {}
             ml_prediction = result_data.get('ml_prediction', {})
-            risk_level = result_data.get('risk_level', 'unknown')
 
             # RoleName 추출
             role_name = extract_role_name(user_identity)
 
             # Predicted Threats 포맷
-            predicted_threats = format_predicted_threat(ml_prediction, risk_level)
+            predicted_threats = format_predicted_threat(ml_prediction)
 
             threat_item = {
                 "event_id": str(event_id),

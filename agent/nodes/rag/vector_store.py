@@ -9,7 +9,7 @@ def get_vector_store() -> PGVector:
         api_key=os.environ.get("OPENAI_API_KEY")
     )
 
-    connection = str(engine.url)
+    connection = engine.url.render_as_string(hide_password=False)
 
     return PGVector(
         connection=connection,

@@ -38,7 +38,6 @@ class FilterLogService:
                     try:
                         ml_log_id = result.get('ml_log_id')
                         filter_data = result.get('filter_result', {})
-                        threat = result.get('is_threat', False)
                         
                         if not ml_log_id:
                             failed_count += 1
@@ -58,15 +57,13 @@ class FilterLogService:
                         # FilterLog 레코드 생성
                         filter_log = FilterLog(
                             id=ml_log_uuid,  # ml_log.id와 동일
-                            result=filter_data,  # JSONB 필드에 필터링 결과 저장
-                            is_threat=threat
+                            result=filter_data  # JSONB 필드에 필터링 결과 저장
                         )
                         
                         # 기존 레코드가 있는지 확인하고 업데이트 또는 삽입
                         existing = db.query(FilterLog).filter(FilterLog.id == ml_log_uuid).first()
                         if existing:
                             existing.result = filter_data
-                            existing.is_threat = threat
                             logger.debug(f"필터 로그 업데이트: {ml_log_id}")
                         else:
                             db.add(filter_log)
