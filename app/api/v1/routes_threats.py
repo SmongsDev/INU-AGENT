@@ -2,16 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
+from uuid import UUID
 from app.db.session import get_db
-from app.db.models import FilterLog, MLLog, Event, CloudTrail, Session as SessionModel
+from app.db.models import FilterLog, MLLog, Event, CloudTrail
 from app.schemas.events import FilterLog as FilterLogSchema
+from app.core.auth import get_group_id_from_token
 from datetime import datetime
 
 router = APIRouter()
-
-def verify_token(token: str, db: Session) -> bool:
-    session = db.query(SessionModel).filter(SessionModel.token == str(token)).first()
-    return session is not None
 
 def extract_role_name(user_identity: dict) -> str:
     """
@@ -90,13 +88,12 @@ def extract_role_name(user_identity: dict) -> str:
         return "Unknown"
 
 # 임시로 구현한 함수
-def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
+def format_predicted_threat(ml_prediction: dict) -> str:
     """
     ML 예측 결과를 사용자 친화적 형태로 포맷
 
     Args:
         ml_prediction: ML 예측 데이터
-        risk_level: 위험도 레벨
 
     Returns:
         str: 포맷된 위협 예측 문자열
@@ -108,29 +105,21 @@ def format_predicted_threat(ml_prediction: dict, risk_level: str) -> str:
     confidence = ml_prediction.get('confidence', 0.0)
     confidence_pct = int(confidence * 100)
 
-    if risk_level == "ml_detected":
-        return f"ML Detected Threat ({confidence_pct}%)"
-    elif is_threat:
-        return f"High Threat ({confidence_pct}%)"
-    elif risk_level == "high":
-        return f"High Risk Pattern ({confidence_pct}%)"
-    elif risk_level == "medium":
-        return f"Medium Risk ({confidence_pct}%)"
-    elif risk_level == "low":
-        return f"Low Risk ({confidence_pct}%)"
+    if is_threat:
+        return f"Threat Detected ({confidence_pct}%)"
     else:
         return f"Normal ({confidence_pct}%)"
 
 @router.get("/threats", response_model=List[dict])
 def get_threats(
-    token: str = Query(..., description="인증 토큰"),
+    group_id: UUID = Depends(get_group_id_from_token),
     db: Session = Depends(get_db),
-    risk_level: Optional[str] = Query(None, description="필터링할 위험도 레벨 (high, medium, low, ml_detected, unknown)"),
     limit: Optional[int] = Query(None, description="반환할 최대 레코드 수")
 ):
-    # 토큰 검증
-    if not verify_token(token, db):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    """
+    위협 데이터 조회
+    - Authorization: Bearer {access_token}
+    """
 
     try:
         # 기본 쿼리: FilterLog와 관련 테이블들을 조인
@@ -154,17 +143,9 @@ def get_threats(
             Event, MLLog.event_id == Event.id
         ).outerjoin(
             CloudTrail, Event.id == CloudTrail.id
+        ).filter(
+            Event.group_id == group_id  # group_id 필터링 추가
         )
-
-        # 필터링 조건 적용
-        filters = []
-
-        if risk_level is not None:
-            # JSONB 필드에서 risk_level 값 확인
-            filters.append(FilterLog.result['risk_level'].astext == risk_level)
-
-        if filters:
-            query = query.filter(and_(*filters))
 
         # 최신 순으로 정렬하고 limit 적용
         results = query.order_by(Event.created_at.desc()).limit(limit).all()
@@ -175,13 +156,12 @@ def get_threats(
             # filter_log.result에서 추가 정보 추출
             result_data = filter_log.result or {}
             ml_prediction = result_data.get('ml_prediction', {})
-            risk_level = result_data.get('risk_level', 'unknown')
 
             # RoleName 추출
             role_name = extract_role_name(user_identity)
 
             # Predicted Threats 포맷
-            predicted_threats = format_predicted_threat(ml_prediction, risk_level)
+            predicted_threats = format_predicted_threat(ml_prediction)
 
             threat_item = {
                 "event_id": str(event_id),

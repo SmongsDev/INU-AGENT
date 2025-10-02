@@ -58,8 +58,6 @@ class EventService:
                             utc_time = last_sync_time.astimezone(timezone.utc)
                         query = query.where(EventModel.created_at >= utc_time)
                     
-                    # query = query.limit(10)  # 필요시 제한
-                    
                     result = db.execute(query)
                     for event_record, source_record in result:
                         event_dict = self._convert_to_standard_dict(source_record, source_product)

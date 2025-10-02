@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from uuid import UUID
 from app.db.session import get_db
 from app.db.models import Meta_Data
 from pydantic import BaseModel
@@ -9,18 +10,18 @@ from app.core.auth import get_group_id_from_token
 router = APIRouter()
 
 class AgentFlowRequest(BaseModel):
-    token: str
     agent_flow: dict
-
-class AgentFlowGetRequest(BaseModel):
-    token: str
-
-class AgentFlowDeleteRequest(BaseModel):
-    token: str
-
+    
 @router.post("/agent_setup")
-def save_agent_flow(request: AgentFlowRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def save_agent_flow(
+    request: AgentFlowRequest,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Flow 저장
+    - Authorization: Bearer {access_token}
+    """
     
     meta_data = db.query(Meta_Data).filter(Meta_Data.group_id == group_id).first()
     if meta_data:
@@ -38,8 +39,14 @@ def save_agent_flow(request: AgentFlowRequest, db: Session = Depends(get_db)):
     return {"message": "Agent flow saved successfully"}
 
 @router.get("/agent_setup")
-def get_agent_flow(token: str = Query(...), db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(token, db)
+def get_agent_flow(
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Flow 조회
+    - Authorization: Bearer {access_token}
+    """
     
     meta_data = db.query(Meta_Data).filter(Meta_Data.group_id == group_id).first()
     if not meta_data:
@@ -51,8 +58,14 @@ def get_agent_flow(token: str = Query(...), db: Session = Depends(get_db)):
     }
 
 @router.post("/agent_setup/delete")
-def delete_agent_flow(request: AgentFlowDeleteRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def delete_agent_flow(
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Flow 삭제
+    - Authorization: Bearer {access_token}
+    """
     
     meta_data = db.query(Meta_Data).filter(Meta_Data.group_id == group_id).first()
     if not meta_data:

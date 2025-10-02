@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 
 class MLAnalysisService:
     """ML 분석 서비스 클래스"""
-    
-    def __init__(self, model_path: str = None):
+
+    def __init__(self, model_path: str = None, group_id: str = None):
         if model_path is None:
             model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "threat_model.pkl")
         self.model_path = model_path
+        self.group_id = group_id
         self.predictor = None
         self.result_saver = None
         self.tier1_filter = Tier1Filter()
@@ -90,7 +91,6 @@ class MLAnalysisService:
                             'prediction_details': prediction
                         },
                         'ml_event_data': ml_event,
-                        'is_threat': is_threat
                     }
                     
                     if is_threat:
@@ -125,23 +125,21 @@ class MLAnalysisService:
 
         # 1. ML 위협 탐지 이벤트들 → filter_log에 저장
         if threat_events:
-            # 다시 되돌릴 예정
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → filter_log 테이블에 저장")
-            self._save_threat_events_to_filter_log(threat_events)
 
             # 기존 Tier2 Agent 로직 주석 처리
-            # for threat_result in threat_events:
-            #     try:
-            #         # 딕셔너리를 직접 Agent에 전달 (변환 불필요)
-            #         event_dict = threat_result.get('event_dict')
-            #         confidence = threat_result.get('ml_prediction', {}).get('confidence', 0.0)
-            #
-            #         # 딕셔너리를 직접 Agent에 전달
-            #         agent_result = process_security_event(event_dict, confidence)
-            #         logger.info(f"Agent 분석 완료: Event {event_dict.get('_event_id')} - 오탐여부: {agent_result['is_false_positive']}")
-            #
-            #     except Exception as e:
-            #         logger.error(f"Tier2 Agent 분석 오류: {e}")
+            for threat_result in threat_events:
+                try:
+                    # 딕셔너리를 직접 Agent에 전달 (변환 불필요)
+                    event_dict = threat_result.get('event_dict')
+                    confidence = threat_result.get('ml_prediction', {}).get('confidence', 0.0)
+            
+                    # 딕셔너리를 직접 Agent에 전달
+                    agent_result = process_security_event(event_dict, confidence)
+                    logger.info(f"Agent 분석 완료: Event {event_dict.get('_event_id')} - 오탐여부: {agent_result['is_false_positive']}")
+            
+                except Exception as e:
+                    logger.error(f"Tier2 Agent 분석 오류: {e}")
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:
@@ -181,41 +179,3 @@ class MLAnalysisService:
             })
         
         return db_results, threat_count
-
-    # 다시 되돌릴 예정 (제거)
-    def _save_threat_events_to_filter_log(self, threat_events: List[dict]):
-        """ML이 위협으로 판단한 이벤트들을 filter_log에 저장"""
-        try:
-            from app.services.filter_log_service import FilterLogService
-            filter_log_service = FilterLogService()
-
-            filter_log_data = []
-
-            for threat_result in threat_events:
-                event_dict = threat_result.get('event_dict', {})
-                ml_prediction = threat_result.get('ml_prediction', {})
-                event_id = event_dict.get('_event_id', '')
-                is_threat = threat_result.get("is_threat", '')
-
-                filter_data = {
-                    "ml_log_id": event_id,
-                    "filter_result": {
-                        "should_analyze": True,
-                        "filter_reason": "ML 위협 탐지",
-                        "risk_level": "high",
-                        "ml_prediction": {
-                            "is_threat": ml_prediction.get('is_threat', True),
-                            "confidence": ml_prediction.get('confidence', 0.0)
-                        },
-                        "filter_timestamp": str(datetime.now())
-                    },
-                    "is_threat": is_threat
-                }
-                filter_log_data.append(filter_data)
-
-            if filter_log_data:
-                save_stats = filter_log_service.save_filter_results(filter_log_data)
-                logger.info(f"ML 위협 이벤트 filter_log 저장: {save_stats.get('success', 0)}개 성공")
-
-        except Exception as e:
-            logger.error(f"위협 이벤트 filter_log 저장 오류: {e}")

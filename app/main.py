@@ -12,8 +12,9 @@ from agent.graph import process_security_event
 logger = logging.getLogger(__name__)
 
 async def periodic_fetch(interval_minutes: int = 5):
-    event_service = EventService(group_id="accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf")
-    ml_service = MLAnalysisService()
+    group_id = "accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf"
+    event_service = EventService(group_id=group_id)
+    ml_service = MLAnalysisService(group_id=group_id)
     
     while True:
         # 새 이벤트 가져오기

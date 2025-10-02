@@ -1,16 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from uuid import UUID
 from app.db.session import get_db
 from app.db.models import aas
-from app.schemas.aas import AASRequest, AASGetRequest, AASDeleteRequest
+from app.schemas.aas import AASRequest, AASDeleteRequest
 from app.core.auth import get_group_id_from_token
 from app.services.s3_service import S3Service
 
 router = APIRouter()
 
 @router.post("/agent_draw")
-def save_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def save_agent_draw(
+    request: AASRequest,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Draw 저장
+    - Authorization: Bearer {access_token}
+    """
 
     existing_aas = db.query(aas).filter(
         aas.group_id == group_id,
@@ -43,10 +51,13 @@ def save_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
 @router.get("/agent_draw")
 def get_agent_draw(
     id: str = Query(...),
-    token: str = Query(...),
+    group_id: UUID = Depends(get_group_id_from_token),
     db: Session = Depends(get_db)
 ):
-    group_id = get_group_id_from_token(token, db)
+    """
+    Agent Draw 조회
+    - Authorization: Bearer {access_token}
+    """
 
     aas_record = db.query(aas).filter(
         aas.flow_name == id,
@@ -69,8 +80,15 @@ def get_agent_draw(
     }
 
 @router.post("/agent_draw/update")
-def update_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def update_agent_draw(
+    request: AASRequest,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Draw 업데이트
+    - Authorization: Bearer {access_token}
+    """
 
     existing_aas = db.query(aas).filter(
         aas.group_id == group_id,
@@ -97,8 +115,14 @@ def update_agent_draw(request: AASRequest, db: Session = Depends(get_db)):
     }
 
 @router.get("/agent_draws")
-def get_all_agent_draws(token: str = Query(...), db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(token, db)
+def get_all_agent_draws(
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Draw 목록 조회
+    - Authorization: Bearer {access_token}
+    """
 
     aas_records = db.query(aas).filter(aas.group_id == group_id).all()
 
@@ -120,8 +144,15 @@ def get_all_agent_draws(token: str = Query(...), db: Session = Depends(get_db)):
     return {"agent_draws": agent_draws}
 
 @router.post("/agent_draw/delete")
-def delete_agent_draw(request: AASDeleteRequest, db: Session = Depends(get_db)):
-    group_id = get_group_id_from_token(request.token, db)
+def delete_agent_draw(
+    request: AASDeleteRequest,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Agent Draw 삭제
+    - Authorization: Bearer {access_token}
+    """
     
     aas_record = db.query(aas).filter(
         aas.flow_name == request.flow_name,

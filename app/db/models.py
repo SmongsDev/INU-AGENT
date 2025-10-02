@@ -70,7 +70,7 @@ class Session(Base):
     id = Column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True)
     user_id = Column(PgUUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     ip_addr = Column(INET, nullable=False)
-    token = Column(String, nullable=False)
+    refresh_token = Column(String, nullable=False, comment="JWT Refresh Token")
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
     expired_at = Column(TIMESTAMP)
 
@@ -174,7 +174,6 @@ class FilterLog(Base):
 
     id        = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
     result    = Column(JSONB)
-    is_threat = Column(Boolean, default=False)
 
     # Relationships
     ml_log = relationship("MLLog", back_populates="filter_logs")
@@ -202,6 +201,17 @@ class aas(Base):
 
     # Relationships
     group = relationship("Group", back_populates="aas")
+
+class Dashboard(Base):
+    __tablename__ = "dashboard"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
+    dashboard = Column(JSONB, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
+
+    # Relationships
+    group = relationship("Group")
 
 # view
 class VwEventsEnriched(Base):
