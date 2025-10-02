@@ -4,8 +4,8 @@ from uuid import UUID
 
 
 class DashboardCreate(BaseModel):
-    token: str
     dashboard: dict
+    # token은 Authorization 헤더로 전달
 
 
 class DashboardResponse(BaseModel):

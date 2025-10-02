@@ -2,16 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
+from uuid import UUID
 from app.db.session import get_db
-from app.db.models import FilterLog, MLLog, Event, CloudTrail, Session as SessionModel
+from app.db.models import FilterLog, MLLog, Event, CloudTrail
 from app.schemas.events import FilterLog as FilterLogSchema
+from app.core.auth import get_group_id_from_token
 from datetime import datetime
 
 router = APIRouter()
-
-def verify_token(token: str, db: Session) -> bool:
-    session = db.query(SessionModel).filter(SessionModel.token == str(token)).first()
-    return session is not None
 
 def extract_role_name(user_identity: dict) -> str:
     """
@@ -114,13 +112,14 @@ def format_predicted_threat(ml_prediction: dict) -> str:
 
 @router.get("/threats", response_model=List[dict])
 def get_threats(
-    token: str = Query(..., description="인증 토큰"),
+    group_id: UUID = Depends(get_group_id_from_token),
     db: Session = Depends(get_db),
     limit: Optional[int] = Query(None, description="반환할 최대 레코드 수")
 ):
-    # 토큰 검증
-    if not verify_token(token, db):
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    """
+    위협 데이터 조회
+    - Authorization: Bearer {access_token}
+    """
 
     try:
         # 기본 쿼리: FilterLog와 관련 테이블들을 조인
@@ -144,6 +143,8 @@ def get_threats(
             Event, MLLog.event_id == Event.id
         ).outerjoin(
             CloudTrail, Event.id == CloudTrail.id
+        ).filter(
+            Event.group_id == group_id  # group_id 필터링 추가
         )
 
         # 최신 순으로 정렬하고 limit 적용
