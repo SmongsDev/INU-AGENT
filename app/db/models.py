@@ -202,6 +202,17 @@ class aas(Base):
     # Relationships
     group = relationship("Group", back_populates="aas")
 
+class Dashboard(Base):
+    __tablename__ = "dashboard"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
+    dashboard = Column(JSONB, nullable=False)
+    created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)
+
+    # Relationships
+    group = relationship("Group")
+
 # view
 class VwEventsEnriched(Base):
     __tablename__  = "vw_events_enriched"

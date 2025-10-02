@@ -23,7 +23,7 @@ class MLAnalysisService:
         self.group_id = group_id
         self.predictor = None
         self.result_saver = None
-        self.tier1_filter = Tier1Filter(group_id=group_id)
+        self.tier1_filter = Tier1Filter()
     
     def _initialize_components(self):
         """ML 컴포넌트들을 초기화"""
