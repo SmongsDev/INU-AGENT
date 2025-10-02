@@ -5,12 +5,22 @@ from fastapi import HTTPException, Depends, Header
 from sqlalchemy.orm import Session
 from uuid import UUID
 import os
+import sys
 
-# JWT 설정 (환경 변수에서 로드, 없으면 기본값 사용)
+# JWT 설정 (환경 변수에서 로드)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # 1시간
 REFRESH_TOKEN_EXPIRE_DAYS = 7  # 7일
+
+# SECRET_KEY 검증 (필수)
+if not SECRET_KEY:
+    print("ERROR: JWT_SECRET_KEY environment variable is not set")
+    sys.exit(1)
+
+if not ALGORITHM:
+    print("ERROR: JWT_ALGORITHM environment variable is not set")
+    sys.exit(1)
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """
@@ -90,6 +100,35 @@ def verify_token(token: str, token_type: str = "access") -> Dict:
             raise HTTPException(
                 status_code=401,
                 detail=f"Invalid token type. Expected {token_type}"
+            )
+
+        # 만료 시간(exp) 명시적 검증
+        exp = payload.get("exp")
+        if not exp:
+            raise HTTPException(
+                status_code=401,
+                detail="Token missing expiration time"
+            )
+
+        current_time = datetime.now(timezone.utc).timestamp()
+        if current_time >= exp:
+            raise HTTPException(
+                status_code=401,
+                detail="Token has expired"
+            )
+
+        # 발행 시간(iat) 명시적 검증 (미래 토큰 방지)
+        iat = payload.get("iat")
+        if not iat:
+            raise HTTPException(
+                status_code=401,
+                detail="Token missing issued at time"
+            )
+
+        if iat > current_time:
+            raise HTTPException(
+                status_code=401,
+                detail="Token issued in the future"
             )
 
         return payload
