@@ -12,6 +12,7 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     MODEL_NAME = "gpt-4.1"
     COLLECTION_NAME = "cloud_matrix"
+    RETRIEVE_CNT = 5
     EMBED_DIM = 1536
     
     @classmethod

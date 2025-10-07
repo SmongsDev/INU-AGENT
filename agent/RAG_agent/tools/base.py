@@ -23,24 +23,34 @@ vector_store = PGVector(
     relevance_score_fn="cosine",
 )
 
-retriever = vector_store.as_retriever(search_kwargs={"k": 5})
+def get_retriever(retrieve_cnt: int):
+    retriever = vector_store.as_retriever(search_kwargs={"k": retrieve_cnt})
+    return retriever
 
 # Tool setup
-retriever_tool = create_retriever_tool(
-    retriever,
-    "retrieve_document",
-    "Search and return information about MITRE ATT&CK technique posts.",
-)
+def get_retriever_tool(retrieve_cnt: int):
+    retrieve_cnt = retrieve_cnt or Config.RETRIEVE_CNT
+    retriever_tool = create_retriever_tool(
+        get_retriever(retrieve_cnt),
+        "retrieve_document",
+        "Search and return information about MITRE ATT&CK technique posts.",
+    )
+    return retriever_tool
 
-# Model setup
-response_model = init_chat_model(
-    f"openai:{Config.MODEL_NAME}",
+def get_response_model(model_name: str):
+    model = model_name or Config.MODEL_NAME
+    response_model = init_chat_model(
+        f"openai:{model}",
+        temperature=0,
+        openai_api_key=Config.OPENAI_API_KEY
+    )
+    return response_model
+
+def get_grader_model(model_name: str = None):
+    model = model_name or Config.MODEL_NAME
+    grader_model = init_chat_model(
+        f"openai:{model}",
     temperature=0,
     openai_api_key=Config.OPENAI_API_KEY
-)
-
-grader_model = init_chat_model(
-    f"openai:{Config.MODEL_NAME}",
-    temperature=0,
-    openai_api_key=Config.OPENAI_API_KEY
-)
+    )
+    return grader_model

@@ -1,13 +1,20 @@
-from langgraph.graph import MessagesState
-from .base import response_model, retriever_tool
+from .base import get_response_model, get_retriever_tool
+from typing import TypedDict, Annotated
+from langgraph.graph.message import add_messages
 
-def generate_query_or_respond(state: MessagesState):
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    rag_model: str
+    retrive_cnt: int
+    report_option: dict
+
+def generate_query_or_respond(state: State):
     """Call the model to generate a response based on the current state. Given
     the question, it will decide to retrieve using the retriever tool, or simply respond to the user.
     """
     response = (
-        response_model
-        .bind_tools([retriever_tool])
+        get_response_model(state["rag_model"])
+        .bind_tools([get_retriever_tool(state["retrive_cnt"])])
         .invoke(state["messages"])
     )
     return {"messages": [response]}

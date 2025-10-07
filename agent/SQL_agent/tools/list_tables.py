@@ -1,8 +1,13 @@
 from langchain_core.messages import AIMessage
-from langgraph.graph import MessagesState
+from typing import TypedDict, Annotated
+from langgraph.graph.message import add_messages
 from agent.SQL_agent.tools.base import tools
 
-def list_tables(state: MessagesState):
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    sql_model: str
+
+def list_tables(state: State):
     tool_call = {
         "name": "sql_db_list_tables",
         "args": {},
