@@ -8,14 +8,15 @@ BASE_DIR = Path(__file__).parent
 PROMPTS_DIR = BASE_DIR / "prompts"
 
 class Config:
-    DATABASE_URL = os.getenv("TEST_DATABASE_URL")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-    MODEL_NAME = "gpt-4.1"
-    COLLECTION_NAME = "cloud_matrix"
-    RETRIEVE_CNT = 5
-    EMBED_DIM = 1536
+    
+    # Supervisor specific configurations
+    DEFAULT_SUP_MODEL = "openai:gpt-4.1"
+    DEFAULT_SQL_MODEL = "openai:gpt-4.1"
+    DEFAULT_RAG_MODEL = "openai:gpt-4.1"
+    DEFAULT_RETRIVE_CNT = 5
     
     @classmethod
     def load_prompt(cls, name: str) -> str:
-        prompt_path = PROMPTS_DIR / f"{name}_prompt.txt"
+        prompt_path = PROMPTS_DIR / f"{name}_system_prompt.txt"
         return prompt_path.read_text()

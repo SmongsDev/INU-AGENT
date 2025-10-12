@@ -1,5 +1,7 @@
 from langsmith import Client
-from langgraph.graph import StateGraph, START, END, MessagesState
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+from typing import TypedDict, Annotated
 
 from agent.SQL_agent.tools.base import get_schema_node, run_query_node
 from agent.SQL_agent.tools.list_tables import list_tables
@@ -10,8 +12,12 @@ from agent.SQL_agent.tools.should_continue import should_continue
 
 client = Client()
 
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    sql_model: str
+
 def SQL_agent():
-    builder = StateGraph(MessagesState)
+    builder = StateGraph(State)
     builder.add_node(list_tables)
     builder.add_node(call_get_schema)
     builder.add_node(get_schema_node, "get_schema")
