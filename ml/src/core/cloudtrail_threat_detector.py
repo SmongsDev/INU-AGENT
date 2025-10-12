@@ -66,7 +66,6 @@ class CloudTrailThreatDetector:
         self.feature_names = []
         self.feature_importance_ = None
         self.is_trained = False
-        self._feature_cache = {}
         
     def extract_features(self, log_event: Dict) -> pd.DataFrame:
         """

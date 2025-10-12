@@ -19,11 +19,12 @@ def train_threat_detection_model(
     model_output_path: str = "ml/models/cloudTrail_v1.pkl",
     min_logs: int = 100,
     time_filter_start: str = None,
-    time_filter_end: str = None
+    time_filter_end: str = None,
+    force: bool = False
 ):
     """
     CloudTrail 위협 탐지 모델을 훈련합니다.
-    
+
     Args:
         data_source: 데이터 소스 ('json_file' 또는 'directory')
         file_path: JSON 파일 경로 (data_source가 'json_file'인 경우)
@@ -32,7 +33,8 @@ def train_threat_detection_model(
         min_logs: 최소 로그 수 (이보다 적으면 경고)
         time_filter_start: 시작 시간 필터 (ISO 형식)
         time_filter_end: 종료 시간 필터 (ISO 형식)
-    
+        force: 최소 로그 수 경고를 무시하고 강제로 진행 (기본값: False)
+
     Returns:
         훈련된 CloudTrailThreatDetector 객체
     """
@@ -77,11 +79,14 @@ def train_threat_detection_model(
     if len(valid_logs) < min_logs:
         print(f"⚠️  경고: 유효한 로그 수({len(valid_logs)})가 권장 최소값({min_logs})보다 적습니다.")
         print("   모델 성능이 제한적일 수 있습니다.")
-        
-        user_input = input("계속 진행하시겠습니까? (y/N): ")
-        if user_input.lower() != 'y':
-            print("훈련을 중단합니다.")
-            return None
+
+        if not force:
+            user_input = input("계속 진행하시겠습니까? (y/N): ")
+            if user_input.lower() != 'y':
+                print("훈련을 중단합니다.")
+                return None
+        else:
+            print("   --force 플래그가 설정되어 계속 진행합니다.")
     
     # 3. 시간 필터링 (선택사항)
     if time_filter_start or time_filter_end:
@@ -259,11 +264,17 @@ def main():
     )
     
     parser.add_argument(
-        '--end-time', 
+        '--end-time',
         type=str,
         help='종료 시간 필터 (ISO 형식, 예: 2024-01-31T23:59:59Z)'
     )
-    
+
+    parser.add_argument(
+        '--force',
+        action='store_true',
+        help='최소 로그 수 경고를 무시하고 강제로 진행'
+    )
+
     args = parser.parse_args()
     
     # 인자 검증
@@ -293,7 +304,8 @@ def main():
             model_output_path=args.output,
             min_logs=args.min_logs,
             time_filter_start=args.start_time,
-            time_filter_end=args.end_time
+            time_filter_end=args.end_time,
+            force=args.force
         )
         
         if detector:

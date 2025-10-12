@@ -183,19 +183,23 @@ class MLResultSaver:
                         key = (item['severity'], item['confidence'])
                         if key not in update_groups:
                             update_groups[key] = []
-                        update_groups[key].append(str(item['id']))
-                    
+                        update_groups[key].append(item['id'])
+
                     # 그룹별로 단일 UPDATE 쿼리 실행
                     from sqlalchemy import text
                     for (severity, confidence), ids in update_groups.items():
                         if ids:
-                            id_list = "','".join(ids)
+                            # SQL Injection 방지: 파라미터 바인딩 사용
+                            placeholders = ','.join([f':id_{i}' for i in range(len(ids))])
                             query = text(f"""
-                                UPDATE ml_log 
-                                SET severity = :severity, confidence = :confidence 
-                                WHERE id IN ('{id_list}')
+                                UPDATE ml_log
+                                SET severity = :severity, confidence = :confidence
+                                WHERE id::text IN ({placeholders})
                             """)
-                            session.execute(query, {'severity': severity, 'confidence': confidence})
+                            params = {'severity': severity, 'confidence': confidence}
+                            for i, uuid_id in enumerate(ids):
+                                params[f'id_{i}'] = str(uuid_id)
+                            session.execute(query, params)
                 
                 # 벌크 삽입 (이미 효율적)
                 if inserts_data:
