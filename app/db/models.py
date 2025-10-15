@@ -205,7 +205,7 @@ class aas(Base):
 class Dashboard(Base):
     __tablename__ = "dashboard"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True)
     group_id = Column(PgUUID(as_uuid=True), ForeignKey("groups.id"), nullable=False)
     dashboard = Column(JSONB, nullable=False)
     created_at = Column(TIMESTAMP, nullable=False, default=datetime.now)

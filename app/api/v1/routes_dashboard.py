@@ -31,7 +31,6 @@ def create_dashboard(
     """
     Dashboard 생성
     - JWT: Authorization: Bearer {access_token}
-    - 레거시: ?token={uuid}
     """
     new_dashboard = Dashboard(
         group_id=group_id,
@@ -41,3 +40,28 @@ def create_dashboard(
     db.commit()
     db.refresh(new_dashboard)
     return new_dashboard
+
+@router.post("/dashboard/{dashboard_id}")
+def delete_dashboard(
+    dashboard_id: UUID,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Dashboard 삭제
+    - JWT: Authorization: Bearer {access_token}
+    - dashboard_id: 삭제할 Dashboard의 UUID
+    """
+    # group_id 검증과 함께 dashboard 조회
+    dashboard = db.query(Dashboard).filter(
+        Dashboard.id == dashboard_id,
+        Dashboard.group_id == group_id
+    ).first()
+
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+
+    db.delete(dashboard)
+    db.commit()
+
+    return {"message": "Dashboard deleted successfully", "id": dashboard_id}
