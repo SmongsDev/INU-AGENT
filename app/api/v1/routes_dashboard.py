@@ -64,4 +64,4 @@ def delete_dashboard(
     db.delete(dashboard)
     db.commit()
 
-    return {"message": "Dashboard deleted successfully", "id": dashboard_id}
+    return {"message": "Dashboard deleted successfully"}
