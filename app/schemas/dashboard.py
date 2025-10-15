@@ -7,6 +7,10 @@ class DashboardCreate(BaseModel):
     dashboard: dict
 
 
+class DashboardUpdate(BaseModel):
+    dashboard: dict
+
+
 class DashboardResponse(BaseModel):
     id: UUID
     dashboard: dict

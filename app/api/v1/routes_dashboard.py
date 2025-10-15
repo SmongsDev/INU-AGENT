@@ -4,7 +4,7 @@ from typing import List
 from uuid import UUID
 from app.db.session import get_db
 from app.db.models import Group, Dashboard
-from app.schemas.dashboard import DashboardCreate, DashboardResponse
+from app.schemas.dashboard import DashboardCreate, DashboardUpdate, DashboardResponse
 from app.core.auth import get_group_id_from_token
 
 router = APIRouter()
@@ -41,7 +41,35 @@ def create_dashboard(
     db.refresh(new_dashboard)
     return new_dashboard
 
-@router.post("/dashboard/{dashboard_id}")
+@router.post("/dashboard/{dashboard_id}/update", response_model=DashboardResponse)
+def update_dashboard(
+    dashboard_id: UUID,
+    dashboard_data: DashboardUpdate,
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+    """
+    Dashboard 수정
+    - JWT: Authorization: Bearer {access_token}
+    - dashboard_id: 수정할 Dashboard의 UUID
+    """
+    # group_id 검증과 함께 dashboard 조회
+    dashboard = db.query(Dashboard).filter(
+        Dashboard.id == dashboard_id,
+        Dashboard.group_id == group_id
+    ).first()
+
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+
+    # dashboard 데이터 업데이트
+    dashboard.dashboard = dashboard_data.dashboard
+    db.commit()
+    db.refresh(dashboard)
+
+    return dashboard
+
+@router.post("/dashboard/{dashboard_id}/delete")
 def delete_dashboard(
     dashboard_id: UUID,
     group_id: UUID = Depends(get_group_id_from_token),
