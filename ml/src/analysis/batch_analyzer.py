@@ -64,8 +64,8 @@ class BatchAnalyzer:
             
             # ML 모델 로드
             print(f"📖 모델 로드 중: {self.model_path}")
-            from .predict_threats import CloudTrailPredictor
-            self.predictor = CloudTrailPredictor(self.model_path)
+            from .predict_threats_optimized import OptimizedCloudTrailPredictor
+            self.predictor = OptimizedCloudTrailPredictor(self.model_path)
             
             # 데이터베이스 로더 초기화
             print("🔌 데이터베이스 연결 중...")
@@ -114,9 +114,9 @@ class BatchAnalyzer:
                 return {'processed': 0, 'threats': 0, 'time': 0}
             
             print(f"🔍 {len(events)}개 이벤트 분석 중...")
-            
+
             # ML 분석 수행
-            results = self.predictor.predict_batch(events, show_progress=True)
+            results = self.predictor.predict_batch_optimized(events, show_progress=True)
             
             # 결과를 데이터베이스 형식으로 변환
             db_results = []

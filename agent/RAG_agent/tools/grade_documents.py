@@ -1,8 +1,14 @@
 from typing import Literal
 from pydantic import BaseModel, Field
-from langgraph.graph import MessagesState
+from typing import TypedDict, Annotated
+from langgraph.graph.message import add_messages
 from ..config import Config
-from .base import grader_model
+from .base import get_grader_model
+
+
+class State(TypedDict):
+    messages: Annotated[list, add_messages]
+    rag_model: str
 
 class GradeDocuments(BaseModel):
     """Grade documents using a binary score for relevance check."""
@@ -11,7 +17,7 @@ class GradeDocuments(BaseModel):
     )
 
 def grade_documents(
-    state: MessagesState,
+    state: State,
 ) -> Literal["generate_answer", "rewrite_question"]:
     """Determine whether the retrieved documents are relevant to the question."""
     question = state["messages"][0].content
@@ -23,7 +29,7 @@ def grade_documents(
     )
     
     response = (
-        grader_model
+        get_grader_model(state["rag_model"])
         .with_structured_output(GradeDocuments)
         .invoke([{"role": "user", "content": prompt}])
     )

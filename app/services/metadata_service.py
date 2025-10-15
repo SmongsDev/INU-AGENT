@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
@@ -64,4 +64,14 @@ class MetadataService:
             
         except Exception:
             self.db.rollback()
+            return None
+
+    def get_agent_flow(self, group_id: PgUUID) -> Optional[Dict[str, Any]]:
+        """특정 그룹의 agent_flow JSON 데이터를 가져옵니다."""
+        try:
+            query = select(Meta_Data.agent_flow).where(Meta_Data.group_id == group_id)
+            result = self.db.execute(query).scalar_one_or_none()
+            return result
+            
+        except Exception:
             return None

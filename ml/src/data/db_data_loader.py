@@ -33,12 +33,12 @@ class DatabaseDataLoader:
             database_url: 데이터베이스 연결 URL (None이면 .env에서 로드)
         """
         load_dotenv()
-        
+
         if database_url is None:
             database_url = os.getenv("TEST_DATABASE_URL")
-            
+
         if not database_url:
-            raise ValueError("데이터베이스 URL이 설정되지 않았습니다. TEST_DATABASE_URL 환경변수를 확인하세요.")
+            raise ValueError("데이터베이스 URL이 설정되지 않았습니다. 환경변수를 확인하세요.")
         
         # 연결 풀 설정으로 성능 최적화
         self.engine = create_engine(

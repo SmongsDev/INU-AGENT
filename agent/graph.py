@@ -22,14 +22,6 @@ class State(TypedDict):
     explanation: str
     ml_confidence: float
 
-class Input(TypedDict):
-    event: dict
-    ml_confidence: float
-
-class Output(TypedDict):
-    is_false_positive: bool
-    explanation: str
-
 @traceable(name="create_false_positive_detection_graph")
 def create_graph() -> StateGraph:
     """정오탐 분석을 위한 그래프를 생성합니다."""

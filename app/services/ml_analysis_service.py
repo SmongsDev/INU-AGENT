@@ -7,9 +7,10 @@ from typing import List, Dict, Any
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ml"))
 from ml.src.analysis.predict_threats_optimized import OptimizedCloudTrailPredictor
 from ml.src.data.ml_result_saver import MLResultSaver
-from agent.graph import process_security_event
+from agent.Supervisor_agent.supervisor_agent import supervisor
 from app.services.tier1.filter import Tier1Filter
 from datetime import datetime
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -123,27 +124,56 @@ class MLAnalysisService:
     def _process_analysis_results(self, threat_events: List[dict], normal_events: List[dict]):
         """ML 분석 결과에 따른 분기 처리"""
 
-        # 1. ML 위협 탐지 이벤트들 → filter_log에 저장
+        # 1. ML 위협 탐지 이벤트들 → Supervisor Agent로 전달
         if threat_events:
-            logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → filter_log 테이블에 저장")
+            logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Supervisor Agent로 전달")
 
-            # 기존 Tier2 Agent 로직 주석 처리
             for threat_result in threat_events:
                 try:
-                    # 딕셔너리를 직접 Agent에 전달 (변환 불필요)
+                    # 이벤트 데이터와 ML 분석 결과 추출
                     event_dict = threat_result.get('event_dict')
-                    confidence = threat_result.get('ml_prediction', {}).get('confidence', 0.0)
-            
-                    # 딕셔너리를 직접 Agent에 전달
-                    agent_result = process_security_event(event_dict, confidence)
-                    logger.info(f"Agent 분석 완료: Event {event_dict.get('_event_id')} - 오탐여부: {agent_result['is_false_positive']}")
-            
+                    ml_prediction = threat_result.get('ml_prediction', {})
+                    confidence = ml_prediction.get('confidence', 0.0)
+
+                    # State 생성 - Supervisor Agent에 전달할 형태
+                    state = {
+                        "messages": [{
+                            "role": "user",
+                            "content": f"ML 분석 결과 위협으로 판단된 이벤트를 분석해주세요. 이벤트 데이터와 ML 분석 결과를 참고하여 위협 여부를 판단하고 상세 분석을 수행해주세요."
+                        }],
+                        "sup_model": "gpt-4.1",
+                        "sql_model": "gpt-4.1",
+                        "rag_model": "gpt-4.1",
+                        "retrive_cnt": 5,
+                        "report_option": {
+                            "timeline": True,
+                            "mapping": True,
+                        },
+                        # 추가 정보: 로그 데이터와 ML 분석 결과
+                        "log_data": event_dict,
+                        "ml_analysis_result": {
+                            "confidence": confidence,
+                            "prediction_details": ml_prediction.get('prediction_details', {})
+                        }
+                    }
+
+                    # Supervisor Agent 실행
+                    supervisor_instance = supervisor(state)
+
+                    # 스트리밍 결과 수집
+                    agent_results = []
+                    for chunk in supervisor_instance.stream(state):
+                        agent_results.append(chunk)
+                        logger.debug(f"Agent chunk: {chunk}")
+
+                    logger.info(f"Supervisor Agent 분석 완료: Event {event_dict.get('_event_id')} - 신뢰도: {confidence:.2f}")
+
                 except Exception as e:
-                    logger.error(f"Tier2 Agent 분석 오류: {e}")
+                    logger.error(f"Supervisor Agent 분석 오류: {e}", exc_info=True)
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:
-            # 기존 Tier1 필터 로직 주석 처리
+            # 기존 Tier1 필터 로직
             if self.tier1_filter:
                 logger.info(f"Tier1 필터 처리: ML 정상 판단 {len(normal_events)}개 이벤트")
                 self.tier1_filter.process_ml_analysis_results(normal_events)
