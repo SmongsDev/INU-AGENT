@@ -129,11 +129,14 @@ def train_threat_detection_model(
     print("-" * 30)
     
     detector = CloudTrailThreatDetector(
-        n_estimators=100,
-        max_depth=15,
+        n_estimators=200,
+        max_depth=20,
+        min_samples_split=5,
+        min_samples_leaf=2,
         random_state=42,
         n_jobs=-1,
-        class_weight='balanced'
+        class_weight='balanced',
+        max_features='sqrt'
     )
     
     print("Random Forest 모델 초기화 완료")

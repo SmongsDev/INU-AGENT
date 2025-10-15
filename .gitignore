@@ -142,6 +142,7 @@ last_sync_time.json
 ml/data
 ml/models/tests
 ml/logs
+ml/docs
 
 # claude
 .claude/

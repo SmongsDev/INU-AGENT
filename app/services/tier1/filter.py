@@ -3,6 +3,7 @@ from typing import List, Optional
 from datetime import datetime
 from ml.src.data.ml_result_saver import MLResultSaver
 from app.core.logger import get_logger
+from agent.Supervisor_agent.supervisor_agent import supervisor
 
 logger = get_logger(__name__)
 
@@ -343,23 +344,51 @@ class Tier1Filter:
                         should_analyze = processing_result.get('should_analyze', True)
                         
                         if should_analyze:
-                            # Tier2 Agent로 전달하여 재검증
-                            # 다시 되돌릴 예정
+                            # Tier2 Agent로 전달하여 재검증 - Supervisor Agent 사용
                             filter_log_data.append(processing_result.get('filter_data'))
-                            # 필요시 주석! (LangSmith 한도 초과)
-                            # try:
-                            #     event = original_result.get('event')
-                            #     confidence = processing_result.get('confidence', 0.0)
-                                
-                            #     agent_result = process_security_event(event, confidence)
-                                
-                            #     # Agent 결과에 따른 처리 (필요시 추가 로직)
-                            #     # agent_result['is_false_positive'] 값 활용 가능
-                                
-                            # except Exception as e:
-                            #     # Tier2 Agent 오류는 중요하므로 로깅 유지
-                            #     event_id = processing_result.get('event_id', 'Unknown')
-                            #     self.logger.error(f"Tier2 Agent 검증 오류 (Event {event_id}): {e}")
+
+                            try:
+                                event_dict = original_result.get('event_dict')
+                                confidence = processing_result.get('confidence', 0.0)
+
+                                # State 생성 - Supervisor Agent에 전달할 형태
+                                state = {
+                                    "messages": [{
+                                        "role": "user",
+                                        "content": f"ML이 정상으로 판단했지만 Tier1 필터에서 의심스러운 패턴을 감지한 이벤트입니다. 재검증이 필요합니다. 필터 사유: {processing_result.get('filter_reason', 'Unknown')}"
+                                    }],
+                                    "sup_model": "gpt-4.1",
+                                    "sql_model": "gpt-4.1",
+                                    "rag_model": "gpt-4.1",
+                                    "retrive_cnt": 5,
+                                    "report_option": {
+                                        "timeline": True,
+                                        "mapping": True,
+                                    },
+                                    # 추가 정보: 로그 데이터와 ML/필터 분석 결과
+                                    "log_data": event_dict,
+                                    "ml_analysis_result": {
+                                        "is_threat": processing_result.get('is_threat', False),
+                                        "confidence": confidence,
+                                        "filter_reason": processing_result.get('filter_reason', ''),
+                                        "risk_level": processing_result.get('risk_level', 'unknown')
+                                    }
+                                }
+
+                                # Supervisor Agent 실행
+                                supervisor_instance = supervisor(state)
+
+                                # 스트리밍 결과 수집
+                                agent_results = []
+                                for chunk in supervisor_instance.stream(state):
+                                    agent_results.append(chunk)
+
+                                self.logger.info(f"Supervisor Agent 재검증 완료: Event {processing_result.get('event_id', 'Unknown')}")
+
+                            except Exception as e:
+                                # Tier2 Agent 오류는 중요하므로 로깅 유지
+                                event_id = processing_result.get('event_id', 'Unknown')
+                                self.logger.error(f"Supervisor Agent 재검증 오류 (Event {event_id}): {e}", exc_info=True)
                         else:
                             # ML 판단 확정 = 정상으로 최종 확정
                             false_positive_count += 1
