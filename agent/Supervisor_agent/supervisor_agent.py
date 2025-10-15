@@ -5,6 +5,7 @@ from typing import TypedDict, Annotated
 
 from agent.SQL_agent.SQL_agent import SQL_agent
 from agent.RAG_agent.RAG import RAG_agent
+from agent.Supervisor_agent.tools.mapping import mapping
 from agent.Supervisor_agent.config import Config
 from agent.Supervisor_agent.tools.base import create_handoff_tool, get_supervisor_llm
 
@@ -37,13 +38,18 @@ assign_to_RAG_agent = create_handoff_tool(
     description="Assign task to a RAG agent for document retrieval and question answering.",
 )
 
+assign_to_Mapping = create_handoff_tool(
+    agent_name="Mapping",
+    description="Assign task to a Mapping agent for threat detection mapping to MITRE ATT&CK Cloud Matrix.",
+)
+
 def create_supervisor_agent(model_name: str):
     """Supervisor agent를 생성합니다."""
     model = model_name or Config.DEFAULT_SUP_MODEL
     
     return create_react_agent(
         model=get_supervisor_llm(model),
-        tools=[assign_to_SQL_agent, assign_to_RAG_agent],
+        tools=[assign_to_SQL_agent, assign_to_RAG_agent, assign_to_Mapping],
         prompt=Config.load_prompt("supervisor"),
         name="supervisor",
     )
@@ -55,22 +61,27 @@ def supervisor(state: State):
     # Define the multi-agent supervisor graph
     supervisor_graph = (
         StateGraph(State)
-        .add_node(supervisor_agent, destinations=("SQL_agent", "RAG_agent", END))
+        .add_node(supervisor_agent, destinations=("SQL_agent", "RAG_agent", "Mapping", END))
         .add_node(SQL_agent_instance)
         .add_node(RAG_agent_instance)
+        .add_node("Mapping", mapping)
         .add_edge(START, "supervisor")
         # always return back to the supervisor
         .add_edge("SQL_agent", "supervisor")
         .add_edge("RAG_agent", "supervisor")
+        .add_edge("Mapping", "supervisor")
         .compile()
     )
     
     return supervisor_graph
 
-
 if __name__ == "__main__":
     state = {
-        "messages": [{"role": "user", "content": "2025년 9월 15일 발생한 로그 중 arn:aws:iam::093342385579:user/Tedy가 발생시킨 cloud trail 로그랑 request_parameters에 arn:aws:iam::093342385579:role/stratus-red-team-ec2-enumerate-role이 있는 로그를 확인 후 연관 지어서 타임라인을 구성해서 어떤 위협행위를 했는지 마이터 어택 매핑해줘"}],
+        #cloudtrail, ml_result -> 특정 지을 수 있어?
+        #cloudtrail, ml_result SQL 시간이랑 전후 로그들 
+        "cloudtrail":{},
+        "ml_result":{},
+        "messages": [{"role": "user", "content": "cloudtrail 테이블에서 2025-09-01 15:28:30+00 기준 앞뒤로 10초 로그를 확인하고 오탐인지 아닌지 판단해봐."}],
         "sup_model": "gpt-4.1",
         "sql_model": "gpt-4.1",
         "rag_model": "gpt-4.1",
