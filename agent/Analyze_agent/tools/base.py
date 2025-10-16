@@ -48,7 +48,7 @@ def get_model(model_name: str = None):
         openai_api_key=Config.OPENAI_API_KEY
     )
 
-def store_event(sql_result: str, event_id: str, confidence: float, explanation: str):
+def store_event(sql_result: str, event_id: str, is_false_positive: bool, confidence: float, explanation: str):
     """오탐 이벤트를 벡터 DB에 저장합니다."""
     from langchain_core.documents import Document
     
@@ -56,11 +56,10 @@ def store_event(sql_result: str, event_id: str, confidence: float, explanation: 
         Document(
             page_content=sql_result,
             metadata={
+                'is_false_positive': is_false_positive,
                 'event_id': event_id,
                 'confidence': confidence,
-                'explanation': explanation,
-                'is_false_positive': True
+                'explanation': explanation
             }
         )
     ])
-
