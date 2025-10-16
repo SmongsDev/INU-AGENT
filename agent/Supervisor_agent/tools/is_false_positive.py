@@ -7,13 +7,19 @@ is_false_positive_prompt = open("agent/Supervisor_agent/prompts/is_false_positiv
 class State(TypedDict):
     messages: Annotated[list, add_messages]
     sup_model: str
+    is_false_positive : bool
 
 def is_false_positive(state: State):
+    """보안 이벤트가 오탐(false positive)인지 판단합니다."""
     system_message = {
         "role": "system",
         "content": is_false_positive_prompt
     }
-    llm_with_tools = get_supervisor_llm(state["sup_model"])
-    response = llm_with_tools.invoke([system_message] + state["messages"])
-
-    return {"messages": [response]}
+    llm = get_supervisor_llm(state["sup_model"])
+    response = llm.invoke([system_message] + state["messages"])
+    
+    # LLM 응답을 boolean으로 변환
+    response_text = response.content.strip().upper()
+    is_fp = response_text == "TRUE"
+    
+    return {"is_false_positive": is_fp}   

@@ -16,6 +16,9 @@ class State(TypedDict):
     rag_model: str
     retrive_cnt: int
     report_option: dict
+    collection_name: str
+
+    is_false_positive : bool
 
 # Create agent instances
 SQL_agent_instance = SQL_agent()
@@ -86,6 +89,7 @@ if __name__ == "__main__":
         "sql_model": "gpt-4.1",
         "rag_model": "gpt-4.1",
         "retrive_cnt": 5,
+        "collection_name": "cloud_matrix",
         "report_option": {
             "timeline": True,
             "mapping": True,
