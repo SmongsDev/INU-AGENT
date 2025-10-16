@@ -1,59 +1,57 @@
-from langgraph.graph import StateGraph, START, END
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from typing import TypedDict, Annotated
-from langgraph.prebuilt import ToolNode, tools_condition
 
-from .tools.base import get_retriever_tool
-from .tools.generate_query import generate_query_or_respond
-from .tools.grade_documents import grade_documents
-from .tools.rewrite_question import rewrite_question
-from .tools.generate_answer import generate_answer
+from agent.SQL_agent.SQL_agent import SQL_agent
+from agent.Analyze_agent.tools.prepare_sql_query import prepare_sql_query
+from agent.Analyze_agent.tools.save_sql_result import save_sql_result
+from agent.Analyze_agent.tools.retrieve import retrieve_similar_events
+from agent.Analyze_agent.tools.analyze import analyze_event
+from agent.Analyze_agent.tools.store import store_false_positive
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
-    rag_model: str
+    event: dict
+    similar_events: list
+    sql_result: str
+    is_false_positive: bool
+    explanation: str
+    confidence: float
     retrive_cnt: int
 
-def RAG_agent():
-    """Create and return a RAG agent workflow."""
-    workflow = StateGraph(State)
+class Input(TypedDict):
+    event: dict
+    retrive_cnt: int
 
-    # Define retrive node
-    def retrive_node(state: State):
-        retrive_cnt = state.get("retrive_cnt", 7)
-        return ToolNode([get_retriever_tool(retrive_cnt)])
+class Output(TypedDict):
+    is_false_positive: bool
+    confidence: float
+    explanation: str
+
+def Analyze_agent():
+    """보안 이벤트 분석 에이전트 워크플로우를 생성하고 반환합니다."""
     
-    # Define nodes
-    workflow.add_node(generate_query_or_respond)
-    workflow.add_node("retrieve", retrive_node)
-    workflow.add_node(rewrite_question)
-    workflow.add_node(generate_answer)
+    # SQL_agent 인스턴스 생성
+    sql_agent_instance = SQL_agent()
+    
+    # 그래프 구성
+    workflow = StateGraph(State, input=Input, output=Output)
 
-    # Add edges
-    workflow.add_edge(START, "generate_query_or_respond")
+    # 노드 추가
+    workflow.add_node('prepare_sql', prepare_sql_query)
+    workflow.add_node("SQL_agent", sql_agent_instance)
+    workflow.add_node('save_sql_result', save_sql_result)
+    workflow.add_node('retrieve', retrieve_similar_events)
+    workflow.add_node('analyze', analyze_event)
+    workflow.add_node('store', store_false_positive)
 
-    # Decide whether to retrieve
-    workflow.add_conditional_edges(
-        "generate_query_or_respond",
-        tools_condition,
-        {
-            "tools": "retrieve",
-            END: END,
-        },
-    )
-
-    # Add conditional edges after retrieval
-    workflow.add_conditional_edges(
-        "retrieve",
-        grade_documents,
-        {
-            "generate_answer": "generate_answer",
-            "rewrite_question": "rewrite_question"
-        }
-    )
-
-    workflow.add_edge("generate_answer", END)
-    workflow.add_edge("rewrite_question", "generate_query_or_respond")
-
-    # Compile and return
+    # 엣지 추가 - START -> prepare_sql -> SQL_agent -> save_sql_result -> retrieve -> analyze -> store -> END
+    workflow.add_edge(START, 'prepare_sql')
+    workflow.add_edge('prepare_sql', "SQL_agent")
+    workflow.add_edge("SQL_agent", 'save_sql_result')
+    workflow.add_edge('save_sql_result', 'retrieve')
+    workflow.add_edge('retrieve', 'analyze')
+    workflow.add_edge('analyze', 'store')
+    workflow.add_edge('store', END)
+    
     return workflow.compile()

@@ -6,7 +6,7 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
     rag_model: str
     retrive_cnt: int
-    report_option: dict
+    collection_name: str
 
 def generate_query_or_respond(state: State):
     """Call the model to generate a response based on the current state. Given
@@ -14,7 +14,7 @@ def generate_query_or_respond(state: State):
     """
     response = (
         get_response_model(state["rag_model"])
-        .bind_tools([get_retriever_tool(state["retrive_cnt"])])
+        .bind_tools([get_retriever_tool(state["retrive_cnt"], state["collection_name"])])
         .invoke(state["messages"])
     )
     return {"messages": [response]}
