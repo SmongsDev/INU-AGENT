@@ -195,34 +195,48 @@ class DatabaseDataLoader:
         """
         try:
             formatted_event = {
-                # 기본 필드
+                # 기본 필드 (camelCase + snake_case 호환)
                 'eventVersion': cloudtrail.event_version,
+                'event_version': cloudtrail.event_version,
                 'eventTime': cloudtrail.event_time.isoformat() if cloudtrail.event_time else event.created_at.isoformat(),
+                'event_time': cloudtrail.event_time.isoformat() if cloudtrail.event_time else event.created_at.isoformat(),
                 'eventSource': cloudtrail.event_source,
+                'event_source': cloudtrail.event_source,
                 'eventName': cloudtrail.event_name,
+                'event_name': cloudtrail.event_name,
                 'awsRegion': cloudtrail.aws_region,
+                'aws_region': cloudtrail.aws_region,
                 'sourceIPAddress': str(cloudtrail.source_ip) if cloudtrail.source_ip else str(event.source_ip),
+                'source_ip': str(cloudtrail.source_ip) if cloudtrail.source_ip else str(event.source_ip),
                 'userAgent': cloudtrail.user_agent or event.user_agent,
+                'user_agent': cloudtrail.user_agent or event.user_agent,
                 'readOnly': cloudtrail.read_only,
+                'read_only': cloudtrail.read_only,
                 'managementEvent': cloudtrail.management_event,
-                
-                # JSON 필드들
+                'management_event': cloudtrail.management_event,
+
+                # JSON 필드들 (camelCase + snake_case 호환)
                 'userIdentity': cloudtrail.user_identity or {},
+                'user_identity': cloudtrail.user_identity or {},
                 'requestParameters': cloudtrail.request_parameters or {},
+                'request_parameters': cloudtrail.request_parameters or {},
                 'responseElements': cloudtrail.response_elements or {},
+                'response_elements': cloudtrail.response_elements or {},
                 'resources': cloudtrail.resources or [],
-                
-                # 오류 정보
+
+                # 오류 정보 (camelCase + snake_case 호환)
                 'errorCode': cloudtrail.error_code,
+                'error_code': cloudtrail.error_code,
                 'errorMessage': cloudtrail.error_message,
-                
+                'error_message': cloudtrail.error_message,
+
                 # 추가 메타데이터
                 '_event_id': str(event.id),  # ML 결과 저장시 사용
                 '_group_id': str(event.group_id)
             }
-            
+
             return formatted_event
-            
+
         except Exception as e:
             logger.error(f"CloudTrail 이벤트 포맷팅 오류: {e}")
             return None
@@ -233,31 +247,43 @@ class DatabaseDataLoader:
         """
         try:
             formatted_event = {
-                # 기본 필드
+                # 기본 필드 (camelCase + snake_case 호환)
                 'eventVersion': cloudwatch.event_version,
+                'event_version': cloudwatch.event_version,
                 'eventTime': cloudwatch.event_time.isoformat() if cloudwatch.event_time else event.created_at.isoformat(),
+                'event_time': cloudwatch.event_time.isoformat() if cloudwatch.event_time else event.created_at.isoformat(),
                 'eventSource': cloudwatch.event_source,
+                'event_source': cloudwatch.event_source,
                 'eventName': cloudwatch.event_name,
+                'event_name': cloudwatch.event_name,
                 'awsRegion': cloudwatch.aws_region,
+                'aws_region': cloudwatch.aws_region,
                 'sourceIPAddress': str(cloudwatch.source_ip_address) if cloudwatch.source_ip_address else str(event.source_ip),
+                'source_ip': str(cloudwatch.source_ip_address) if cloudwatch.source_ip_address else str(event.source_ip),
                 'userAgent': cloudwatch.user_agent or event.user_agent,
-                
-                # JSON 필드들
+                'user_agent': cloudwatch.user_agent or event.user_agent,
+
+                # JSON 필드들 (camelCase + snake_case 호환)
                 'userIdentity': cloudwatch.userIdentity or {},
+                'user_identity': cloudwatch.userIdentity or {},
                 'requestParameters': cloudwatch.request_parameters or {},
+                'request_parameters': cloudwatch.request_parameters or {},
                 'responseElements': cloudwatch.response_elements or {},
-                
+                'response_elements': cloudwatch.response_elements or {},
+
                 # CloudWatch는 일부 필드 기본값 설정
-                'readOnly': False,  # CloudWatch 이벤트는 보통 read-only가 아님
-                'managementEvent': True,  # CloudWatch 이벤트는 대부분 management event
-                
+                'readOnly': False,
+                'read_only': False,
+                'managementEvent': True,
+                'management_event': True,
+
                 # 추가 메타데이터
                 '_event_id': str(event.id),  # ML 결과 저장시 사용
                 '_group_id': str(event.group_id)
             }
-            
+
             return formatted_event
-            
+
         except Exception as e:
             logger.error(f"CloudWatch 이벤트 포맷팅 오류: {e}")
             return None

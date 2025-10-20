@@ -70,55 +70,68 @@ class CloudTrailThreatDetector:
     def extract_features(self, log_event: Dict) -> pd.DataFrame:
         """
         단일 CloudTrail 로그 이벤트에서 특성을 추출합니다.
-        
+
         Args:
             log_event: 딕셔너리 형태의 CloudTrail 로그 이벤트
-            
+
         Returns:
             추출된 특성이 포함된 DataFrame (1행)
         """
         features = {}
-        
-        # 기본 이벤트 정보
-        features['event_source'] = log_event.get('eventSource', 'unknown')
-        features['event_name'] = log_event.get('eventName', 'unknown')
-        features['aws_region'] = log_event.get('awsRegion', 'unknown')
-        features['read_only'] = log_event.get('readOnly', False)
-        features['management_event'] = log_event.get('managementEvent', False)
-        
-        # 사용자 신원 특성
-        user_identity = log_event.get('userIdentity', {})
+
+        # 기본 이벤트 정보 (snake_case + camelCase 호환)
+        features['event_source'] = log_event.get('event_source') or log_event.get('eventSource', 'unknown')
+        features['event_name'] = log_event.get('event_name') or log_event.get('eventName', 'unknown')
+        features['aws_region'] = log_event.get('aws_region') or log_event.get('awsRegion', 'unknown')
+        features['read_only'] = log_event.get('read_only') if log_event.get('read_only') is not None else log_event.get('readOnly', False)
+        features['management_event'] = log_event.get('management_event') if log_event.get('management_event') is not None else log_event.get('managementEvent', False)
+
+        # 사용자 신원 특성 (snake_case + camelCase 호환)
+        user_identity = log_event.get('user_identity') or log_event.get('userIdentity', {})
+        if isinstance(user_identity, str):
+            import json
+            try:
+                user_identity = json.loads(user_identity)
+            except:
+                user_identity = {}
         features['user_type'] = user_identity.get('type', 'unknown')
         features['user_name'] = user_identity.get('userName', 'unknown')
         features['access_key_id'] = user_identity.get('accessKeyId', 'unknown')
-        
-        # 네트워크 특성
-        features['source_ip'] = log_event.get('sourceIPAddress', 'unknown')
-        features['user_agent'] = log_event.get('userAgent', 'unknown')
+
+        # 네트워크 특성 (snake_case + camelCase 호환)
+        features['source_ip'] = log_event.get('source_ip') or log_event.get('sourceIPAddress', 'unknown')
+        features['user_agent'] = log_event.get('user_agent') or log_event.get('userAgent', 'unknown')
         
         # 시간 특성 제거 (AWS 시간대 불일치 문제로 인해)
-        
+
         # 에러 특성
-        features['has_error_code'] = 'errorCode' in log_event
-        features['is_access_denied'] = log_event.get('errorCode') == 'AccessDenied'
-        
+        error_code = log_event.get('error_code') or log_event.get('errorCode')
+        features['has_error_code'] = error_code is not None and error_code != ''
+        features['is_access_denied'] = error_code == 'AccessDenied'
+
         # 고급 위협 탐지 특성 - 최적화된 버전
         user_agent_lower = features['user_agent'].lower()
-        
+
         # 위협 도구 탐지 - frozenset 사용으로 최적화
         features['has_threat_tool'] = any(tool in user_agent_lower for tool in self.THREAT_TOOLS)
-        
+
         # 브라우저 vs 프로그래매틱 접근 - frozenset 사용으로 최적화
         features['is_browser_access'] = any(browser in user_agent_lower for browser in self.BROWSERS)
         features['is_programmatic'] = not features['is_browser_access'] and user_agent_lower != 'unknown'
-        
+
         # 의심스러운 리소스 패턴 - 최적화
-        request_params = log_event.get('requestParameters', {})
+        request_params = log_event.get('request_parameters') or log_event.get('requestParameters', {})
+        if isinstance(request_params, str):
+            import json
+            try:
+                request_params = json.loads(request_params)
+            except:
+                request_params = {}
         bucket_name = ''
-        
+
         if isinstance(request_params, dict):
             bucket_name = request_params.get('bucketName', '').lower()
-        
+
         features['has_suspicious_resource'] = any(keyword in bucket_name for keyword in self.SUSPICIOUS_KEYWORDS)
         
         # 네트워크 분류 - 최적화
