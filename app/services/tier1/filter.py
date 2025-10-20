@@ -395,15 +395,15 @@ class Tier1Filter:
                     filter_log_data.append(processing_result.get('filter_data'))
 
                     # 비동기 Agent 호출 태스크 추가
-                    # agent_tasks.append(self._process_single_agent_call(original_result, processing_result))
+                    agent_tasks.append(self._process_single_agent_call(original_result, processing_result))
                 else:
                     # ML 판단 확정 = 정상으로 최종 확정
                     false_positive_count += 1
                     filter_log_data.append(processing_result.get('filter_data'))
 
             # 모든 Supervisor Agent 호출을 병렬로 실행
-            # if agent_tasks:
-            #     await asyncio.gather(*agent_tasks, return_exceptions=True)
+            if agent_tasks:
+                await asyncio.gather(*agent_tasks, return_exceptions=True)
 
             # filter_log 테이블에 저장 (정상으로 확정된 경우만)
             tier2_count = processed_count - false_positive_count

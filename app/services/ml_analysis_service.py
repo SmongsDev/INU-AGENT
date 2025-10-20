@@ -22,7 +22,7 @@ class MLAnalysisService:
 
     def __init__(self, model_path: str = None, group_id: str = None):
         if model_path is None:
-            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "threat_model.pkl")
+            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "threat_model_with_sequence.pkl")
         self.model_path = model_path
         self.group_id = group_id
         self.predictor = None
