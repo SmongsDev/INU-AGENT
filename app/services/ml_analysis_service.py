@@ -22,7 +22,7 @@ class MLAnalysisService:
 
     def __init__(self, model_path: str = None, group_id: str = None):
         if model_path is None:
-            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "threat_model_with_sequence.pkl")
+            model_path = str(Path(__file__).parent.parent.parent / "ml" / "models" / "cloudTrail_v2.pkl")
         self.model_path = model_path
         self.group_id = group_id
         self.predictor = None
@@ -196,8 +196,8 @@ class MLAnalysisService:
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Supervisor Agent로 병렬 전달")
 
             # 모든 위협 이벤트를 동시에 처리
-            tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
+            # await asyncio.gather(*tasks, return_exceptions=True)
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:

@@ -5,7 +5,7 @@ import joblib
 from datetime import datetime
 from typing import Dict, List, Union, Tuple, Any, Optional
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import cross_val_score, train_test_split
+from sklearn.model_selection import cross_val_score, train_test_split, TimeSeriesSplit
 from sklearn.preprocessing import LabelEncoder
 from sklearn.metrics import classification_report, confusion_matrix
 import warnings
@@ -301,22 +301,30 @@ class CloudTrailThreatDetector:
 
         return sequence_features
 
-    def _create_rule_based_labels(self, logs_data: List[Dict]) -> np.ndarray:
+    def _create_rule_based_labels(self, logs_data: List[Dict], use_sequence_features: bool = True) -> np.ndarray:
         """
         훈련 데이터를 위한 규칙 기반 라벨을 생성합니다.
 
         데이터가 적은 상황에서 최소한의 확실한 위협만 탐지하도록 보수적으로 설계됨.
 
         Args:
-            logs_data: CloudTrail 로그 이벤트 리스트
+            logs_data: CloudTrail 로그 이벤트 리스트 (시간순 정렬 권장)
+            use_sequence_features: 시퀀스 특성을 라벨링에 사용할지 여부
 
         Returns:
             라벨 배열 (1: 위협, 0: 정상)
         """
         labels = []
 
-        for log_event in logs_data:
-            features_df = self.extract_features(log_event)
+        for idx, log_event in enumerate(logs_data):
+            # 시퀀스 특성 사용 시 이전 이벤트들을 컨텍스트로 전달
+            if use_sequence_features and idx > 0:
+                # 최근 100개 이벤트를 컨텍스트로 사용
+                previous_events = logs_data[max(0, idx-100):idx]
+                features_df = self.extract_features(log_event, previous_events=previous_events)
+            else:
+                features_df = self.extract_features(log_event, previous_events=None)
+
             features = features_df.iloc[0]
 
             is_threat = False
@@ -355,6 +363,22 @@ class CloudTrailThreatDetector:
 
             if suspicious_count >= 4:
                 is_threat = True
+
+            # 규칙 6 (시퀀스 기반): 명확한 공격 패턴 탐지
+            if use_sequence_features:
+                # 1분 내 Stratus 도구 + 버스트 패턴 = 자동화된 공격
+                if features.get('has_stratus_in_1min', False) and features.get('burst_detected', False):
+                    is_threat = True
+
+                # 매우 높은 에러율 + 다양한 API 호출 = 무차별 대입 공격 가능성
+                if (features.get('error_rate_5min', 0.0) > 0.5 and
+                    features.get('unique_api_count_5min', 0) > 10):
+                    is_threat = True
+
+                # 활동 급증 + 고위험 액션 = 의심스러운 대량 작업
+                if (features.get('user_activity_spike', False) and
+                    features['is_high_risk_action']):
+                    is_threat = True
 
             labels.append(1 if is_threat else 0)
 
@@ -528,38 +552,45 @@ class CloudTrailThreatDetector:
         # 라벨이 제공되지 않은 경우 생성
         if labels is None:
             print("규칙 기반 라벨을 생성하는 중...")
-            labels = self._create_rule_based_labels(logs_data)
-        
+            # 시퀀스 특성을 고려한 라벨링 (sorted_logs 사용)
+            labels = self._create_rule_based_labels(sorted_logs, use_sequence_features=use_sequence_features)
+
         # 특성 준비
         print("범주형 특성을 인코딩하는 중...")
         X = self._prepare_features(all_features, is_training=True)
         y = labels
-        
+
         self.feature_names = list(X.columns)
-        
+
         print(f"훈련 데이터 형태: {X.shape}")
         print(f"라벨 분포: {np.bincount(y)}")
-        
-        # 평가를 위한 데이터 분할
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y
-        )
-        
+
+        # 시계열 데이터를 위한 분할 (시간순 유지)
+        # 전체의 80%를 훈련, 20%를 테스트로 사용
+        split_index = int(len(X) * 0.8)
+        X_train = X.iloc[:split_index]
+        X_test = X.iloc[split_index:]
+        y_train = y[:split_index]
+        y_test = y[split_index:]
+
+        print(f"훈련 세트 크기: {len(X_train)}, 테스트 세트 크기: {len(X_test)}")
+
         # 모델 훈련
         print("Random Forest 모델을 훈련하는 중...")
         self.model.fit(X_train, y_train)
         self.is_trained = True
-        
+
         # 특성 중요도 획득
         self.feature_importance_ = pd.DataFrame({
             'feature': self.feature_names,
             'importance': self.model.feature_importances_
         }).sort_values('importance', ascending=False)
-        
-        # 교차 검증
-        print("교차 검증을 수행하는 중...")
-        cv_scores = cross_val_score(self.model, X, y, cv=5, scoring='f1')
-        
+
+        # 시계열 교차 검증 (TimeSeriesSplit 사용)
+        print("시계열 교차 검증을 수행하는 중...")
+        tscv = TimeSeriesSplit(n_splits=5)
+        cv_scores = cross_val_score(self.model, X, y, cv=tscv, scoring='f1')
+
         # 테스트 세트 평가
         y_pred = self.model.predict(X_test)
         
