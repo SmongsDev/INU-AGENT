@@ -27,18 +27,11 @@ jobs:
             User ec2-user
             IdentityFile ~/.ssh/inu-sdev3.pem
             StrictHostKeyChecking no
-
-          Host inu-sdev3
-            HostName 10.0.1.100
-            User ec2-user
-            IdentityFile ~/.ssh/inu-sdev3.pem
-            ProxyCommand ssh inu-public -W %h:%p
-            StrictHostKeyChecking no
           EOL
 
       - name: Deploy to EC2
         run: |
-          ssh inu-sdev3 << 'EOF'
+          ssh inu-public << 'EOF'
           cd /home/ec2-user/INU-AGENT
           git pull origin service
           source venv/bin/activate

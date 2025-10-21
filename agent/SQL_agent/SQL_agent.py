@@ -1,4 +1,3 @@
-from langsmith import Client
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from typing import TypedDict, Annotated
@@ -9,8 +8,6 @@ from agent.SQL_agent.tools.call_get_schema import call_get_schema
 from agent.SQL_agent.tools.generate_query import generate_query
 from agent.SQL_agent.tools.check_query import check_query
 from agent.SQL_agent.tools.should_continue import should_continue
-
-client = Client()
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]

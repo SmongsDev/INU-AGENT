@@ -161,10 +161,9 @@ class FalsePositiveLog(Base):
     __tablename__ = "false_positive_log"
 
     id         = Column(PgUUID(as_uuid=True), ForeignKey("ml_log.id"), primary_key=True)
-    severity   = Column(Integer)
     confidence = Column(Float)
     reason     = Column(String)
-    result     = Column(JSONB)
+    result     = Column(Boolean)
 
     # Relationships
     ml_log = relationship("MLLog", back_populates="false_positive_logs")

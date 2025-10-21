@@ -1,10 +1,11 @@
 from langgraph.graph import END, StateGraph, START
 from langgraph.prebuilt import create_react_agent
 from langgraph.graph.message import add_messages
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Literal
 
 from agent.SQL_agent.SQL_agent import SQL_agent
 from agent.RAG_agent.RAG import RAG_agent
+from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.tools.mapping import mapping
 from agent.Supervisor_agent.config import Config
 from agent.Supervisor_agent.tools.base import create_handoff_tool, get_supervisor_llm
@@ -18,17 +19,25 @@ class State(TypedDict):
     report_option: dict
     collection_name: str
 
-    is_false_positive : bool
+    event: dict
+    similar_events: list
+    sql_result: str
+    is_false_positive: bool
+    explanation: str
+    confidence: float
 
 # Create agent instances
 SQL_agent_instance = SQL_agent()
 RAG_agent_instance = RAG_agent()
+Analyze_agent_instance = Analyze_agent()
 
 # Ensure unique node names for LangGraph nodes
 if hasattr(SQL_agent_instance, "name"):
     SQL_agent_instance.name = "SQL_agent"
 if hasattr(RAG_agent_instance, "name"):
     RAG_agent_instance.name = "RAG_agent"
+if hasattr(Analyze_agent_instance, "name"):
+    Analyze_agent_instance.name = "Analyze_agent"
 
 # Create handoff tools
 assign_to_SQL_agent = create_handoff_tool(
@@ -45,6 +54,17 @@ assign_to_Mapping = create_handoff_tool(
     agent_name="Mapping",
     description="Assign task to a Mapping agent for threat detection mapping to MITRE ATT&CK Cloud Matrix.",
 )
+
+def route_after_analyze(state: State) -> Literal["supervisor", "__end__"]:
+    """Analyze_agent 결과에 따라 라우팅을 결정합니다."""
+    is_false_positive = state.get("is_false_positive", False)
+    
+    if is_false_positive:
+        # 오탐으로 판단되면 종료
+        return "__end__"
+    else:
+        # 실탐으로 판단되면 supervisor로 전달하여 추가 분석
+        return "supervisor"
 
 def create_supervisor_agent(model_name: str):
     """Supervisor agent를 생성합니다."""
@@ -67,9 +87,17 @@ def supervisor(state: State):
         .add_node(supervisor_agent, destinations=("SQL_agent", "RAG_agent", "Mapping", END))
         .add_node(SQL_agent_instance)
         .add_node(RAG_agent_instance)
+        .add_node(Analyze_agent_instance)
         .add_node("Mapping", mapping)
-        .add_edge(START, "supervisor")
-        # always return back to the supervisor
+        # START -> Analyze_agent로 시작
+        .add_edge(START, "Analyze_agent")
+        # Analyze_agent 결과에 따라 조건부 라우팅
+        .add_conditional_edges(
+            "Analyze_agent",
+            route_after_analyze,
+            {"supervisor": "supervisor", "__end__": END}
+        )
+        # 각 에이전트는 supervisor로 돌아감
         .add_edge("SQL_agent", "supervisor")
         .add_edge("RAG_agent", "supervisor")
         .add_edge("Mapping", "supervisor")
@@ -77,24 +105,3 @@ def supervisor(state: State):
     )
     
     return supervisor_graph
-
-if __name__ == "__main__":
-    state = {
-        #cloudtrail, ml_result -> 특정 지을 수 있어?
-        #cloudtrail, ml_result SQL 시간이랑 전후 로그들 
-        "cloudtrail":{},
-        "ml_result":{},
-        "messages": [{"role": "user", "content": "cloudtrail 테이블에서 2025-09-01 15:28:30+00 기준 앞뒤로 10초 로그를 확인하고 오탐인지 아닌지 판단해봐."}],
-        "sup_model": "gpt-4.1",
-        "sql_model": "gpt-4.1",
-        "rag_model": "gpt-4.1",
-        "retrive_cnt": 5,
-        "collection_name": "cloud_matrix",
-        "report_option": {
-            "timeline": True,
-            "mapping": True,
-        },
-    }
-    supervisor = supervisor(state)
-    for chunk in supervisor.stream(state):
-        print(chunk)
