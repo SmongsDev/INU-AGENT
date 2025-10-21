@@ -183,7 +183,7 @@ class MLAnalysisService:
                 None,
                 lambda: Analyze_agent().invoke({"event": event_dict, "retrive_cnt": 5})
             )
-            # logger.info(f"Analyze_agent 분석 완료: Event {event_id} - 신뢰도: {confidence:.2f}")
+            logger.info(f"Analyze_agent 분석 완료: Event {event_id} - 신뢰도: {confidence:.2f}")
 
         except Exception as e:
             logger.error(f"Supervisor Agent 분석 오류: {e}", exc_info=True)
@@ -196,8 +196,8 @@ class MLAnalysisService:
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Supervisor Agent로 병렬 전달")
 
             # 모든 위협 이벤트를 동시에 처리
-            # tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
-            # await asyncio.gather(*tasks, return_exceptions=True)
+            tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
+            await asyncio.gather(*tasks, return_exceptions=True)
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:
