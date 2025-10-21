@@ -31,7 +31,7 @@ jobs:
 
       - name: Deploy to EC2
         run: |
-          ssh inu-sdev3 << 'EOF'
+          ssh inu-public << 'EOF'
           cd /home/ec2-user/INU-AGENT
           git pull origin service
           source venv/bin/activate
