@@ -28,7 +28,7 @@ class EventService:
             db = next(get_db())
             try:
                 last_sync_time = self.metadata_service.get_last_sync_time(self.group_id)
-                # last_sync_time = datetime(2025, 9, 14, tzinfo=timezone.utc) # 테스트용
+                # last_sync_time = datetime(2025, 8, 13, tzinfo=timezone.utc) # 테스트용
                 
                 start_time = datetime.now()
                 events_dict = []
@@ -91,11 +91,11 @@ class EventService:
             if source_product == SourceProduct.cloudtrail:
                 # CloudTrail 특화 필드 매핑
                 base_dict.update({
-                    'eventName': getattr(source_record, 'event_name', ''),
-                    'eventSource': getattr(source_record, 'event_source', ''),
-                    'sourceIPAddress': str(getattr(source_record, 'source_ip', '')),
-                    'userAgent': getattr(source_record, 'user_agent', ''),
-                    'eventTime': source_record.event_time.isoformat() if hasattr(source_record, 'event_time') and source_record.event_time else '',
+                    'event_name': getattr(source_record, 'event_name', ''),
+                    'event_source': getattr(source_record, 'event_source', ''),
+                    'source_ip': str(getattr(source_record, 'source_ip', '')),
+                    'user_agent': getattr(source_record, 'user_agent', ''),
+                    'event_time': source_record.event_time.isoformat() if hasattr(source_record, 'event_time') and source_record.event_time else '',
                     'event_id': str(getattr(source_record, 'event_id', '')),
                     'event_version': getattr(source_record, 'event_version', ''),
                     'event_category': getattr(source_record, 'event_category', ''),
@@ -105,6 +105,7 @@ class EventService:
                     'management_event': getattr(source_record, 'management_event', None),
                     'error_code': getattr(source_record, 'error_code', ''),
                     'error_message': getattr(source_record, 'error_message', ''),
+                    'user_identity': getattr(source_record, 'user_identity', {}),
                     'user_identity_type': getattr(source_record, 'user_identity_type', ''),
                     'user_identity_arn': getattr(source_record, 'user_identity_arn', ''),
                     'request_parameters': getattr(source_record, 'request_parameters', None),
@@ -114,11 +115,11 @@ class EventService:
             elif source_product == SourceProduct.cloudwatch:
                 # CloudWatch 특화 필드 매핑
                 base_dict.update({
-                    'eventName': getattr(source_record, 'event_name', ''),
-                    'eventSource': 'cloudwatch',
-                    'sourceIPAddress': str(source_record.source_ip) if getattr(source_record, 'source_ip', None) else '',
-                    'userAgent': getattr(source_record, 'user_agent', ''),
-                    'eventTime': source_record.event_time.isoformat() if source_record.event_time else base_dict['created_at'],
+                    'event_name': getattr(source_record, 'event_name', ''),
+                    'event_source': 'cloudwatch',
+                    'source_ip': str(source_record.source_ip) if getattr(source_record, 'source_ip', None) else '',
+                    'user_agent': getattr(source_record, 'user_agent', ''),
+                    'event_time': source_record.event_time.isoformat() if source_record.event_time else base_dict['created_at'],
                     # CloudWatch 특화 필드들 추가 가능
                 })
             
