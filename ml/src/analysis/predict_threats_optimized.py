@@ -218,7 +218,7 @@ def analyze_database_events_optimized(
             
             db_results = []
             for log_event, prediction in zip(logs, results):
-                event_id = log_event.get('_event_id')
+                event_id = log_event.get('id')
                 if event_id and not prediction.get('error'):
                     severity = result_saver.convert_ml_prediction_to_severity(
                         prediction.get('is_threat', False), 

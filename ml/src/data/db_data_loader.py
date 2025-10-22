@@ -231,7 +231,7 @@ class DatabaseDataLoader:
                 'error_message': cloudtrail.error_message,
 
                 # 추가 메타데이터
-                '_event_id': str(event.id),  # ML 결과 저장시 사용
+                'id': str(event.id),  # ML 결과 저장시 사용
                 '_group_id': str(event.group_id)
             }
 
@@ -278,7 +278,7 @@ class DatabaseDataLoader:
                 'management_event': True,
 
                 # 추가 메타데이터
-                '_event_id': str(event.id),  # ML 결과 저장시 사용
+                'id': str(event.id),  # ML 결과 저장시 사용
                 '_group_id': str(event.group_id)
             }
 

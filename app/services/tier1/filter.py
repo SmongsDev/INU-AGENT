@@ -456,7 +456,7 @@ class Tier1Filter:
             
             is_threat = ml_prediction.get('is_threat', False)
             confidence = ml_prediction.get('confidence', 0.0)
-            event_id = event_dict.get('_event_id', '')
+            event_id = event_dict.get('id', '')
 
             # NumPy 타입을 Python native 타입으로 변환
             if isinstance(is_threat, (np.bool_, np.generic)):
