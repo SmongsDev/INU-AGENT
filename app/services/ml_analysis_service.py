@@ -162,7 +162,7 @@ class MLAnalysisService:
             # State 생성 - 헬퍼 함수 사용
             state = build_supervisor_state(
                 group_id=self.group_id,
-                event_dict=event_dict,
+                event=event_dict,
                 ml_prediction=ml_prediction
             )
 
