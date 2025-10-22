@@ -6,7 +6,6 @@ from typing import TypedDict, Annotated, Literal
 from agent.SQL_agent.SQL_agent import SQL_agent
 from agent.RAG_agent.RAG import RAG_agent
 from agent.Analyze_agent.Analyze import Analyze_agent
-from agent.Supervisor_agent.tools.mapping import mapping
 from agent.Supervisor_agent.config import Config
 from agent.Supervisor_agent.tools.base import create_handoff_tool, get_supervisor_llm
 
@@ -50,11 +49,6 @@ assign_to_RAG_agent = create_handoff_tool(
     description="Assign task to a RAG agent for document retrieval and question answering.",
 )
 
-assign_to_Mapping = create_handoff_tool(
-    agent_name="Mapping",
-    description="Assign task to a Mapping agent for threat detection mapping to MITRE ATT&CK Cloud Matrix.",
-)
-
 def route_after_analyze(state: State) -> Literal["supervisor", "__end__"]:
     """Analyze_agent 결과에 따라 라우팅을 결정합니다."""
     is_false_positive = state.get("is_false_positive", False)
@@ -72,7 +66,7 @@ def create_supervisor_agent(model_name: str):
     
     return create_react_agent(
         model=get_supervisor_llm(model),
-        tools=[assign_to_SQL_agent, assign_to_RAG_agent, assign_to_Mapping],
+        tools=[assign_to_SQL_agent, assign_to_RAG_agent],
         prompt=Config.load_prompt("supervisor"),
         name="supervisor",
     )
@@ -84,11 +78,10 @@ def supervisor(state: State):
     # Define the multi-agent supervisor graph
     supervisor_graph = (
         StateGraph(State)
-        .add_node(supervisor_agent, destinations=("SQL_agent", "RAG_agent", "Mapping", END))
+        .add_node(supervisor_agent, destinations=("SQL_agent", "RAG_agent", END))
         .add_node(SQL_agent_instance)
         .add_node(RAG_agent_instance)
         .add_node(Analyze_agent_instance)
-        .add_node("Mapping", mapping)
         # START -> Analyze_agent로 시작
         .add_edge(START, "Analyze_agent")
         # Analyze_agent 결과에 따라 조건부 라우팅
@@ -100,7 +93,6 @@ def supervisor(state: State):
         # 각 에이전트는 supervisor로 돌아감
         .add_edge("SQL_agent", "supervisor")
         .add_edge("RAG_agent", "supervisor")
-        .add_edge("Mapping", "supervisor")
         .compile()
     )
     
