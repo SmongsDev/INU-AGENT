@@ -88,7 +88,7 @@ class AgentStateBuilder:
 
     def build_state(
         self,
-        event_dict: Dict[str, Any],
+        event: Dict[str, Any],
         ml_prediction: Optional[Dict[str, Any]] = None,
         messages: Optional[List[Dict[str, str]]] = None,
         additional_context: Optional[Dict[str, Any]] = None
@@ -97,7 +97,7 @@ class AgentStateBuilder:
         Supervisor Agent에 전달할 state를 생성
 
         Args:
-            event_dict: 이벤트 데이터 딕셔너리
+            event: 이벤트 데이터 딕셔너리
             ml_prediction: ML 분석 결과 (선택적)
             messages: 초기 메시지 리스트 (선택적)
             additional_context: 추가 컨텍스트 정보 (선택적)
@@ -119,7 +119,7 @@ class AgentStateBuilder:
                 "timeline": True,
                 "mapping": True,
             }),
-            "log_data": event_dict,
+            "event": event,
         }
 
         # ML 분석 결과 추가
@@ -139,7 +139,7 @@ class AgentStateBuilder:
 
 def build_supervisor_state(
     group_id: str,
-    event_dict: Dict[str, Any],
+    event: Dict[str, Any],
     ml_prediction: Optional[Dict[str, Any]] = None,
     messages: Optional[List[Dict[str, str]]] = None,
     additional_context: Optional[Dict[str, Any]] = None,
@@ -150,7 +150,7 @@ def build_supervisor_state(
 
     Args:
         group_id: 그룹 ID (UUID 문자열)
-        event_dict: 이벤트 데이터 딕셔너리
+        event: 이벤트 데이터 딕셔너리
         ml_prediction: ML 분석 결과 (선택적)
         messages: 초기 메시지 리스트 (선택적)
         additional_context: 추가 컨텍스트 정보 (선택적)
@@ -162,13 +162,13 @@ def build_supervisor_state(
     Example:
         >>> state = build_supervisor_state(
         ...     group_id="550e8400-e29b-41d4-a716-446655440000",
-        ...     event_dict={"event_name": "CreateUser", ...},
+        ...     event={"event_name": "CreateUser", ...},
         ...     ml_prediction={"is_threat": True, "confidence": 0.95}
         ... )
     """
     builder = AgentStateBuilder(group_id=group_id, db=db)
     return builder.build_state(
-        event_dict=event_dict,
+        event=event,
         ml_prediction=ml_prediction,
         messages=messages,
         additional_context=additional_context

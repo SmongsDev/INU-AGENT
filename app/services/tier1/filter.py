@@ -7,6 +7,7 @@ from ml.src.data.ml_result_saver import MLResultSaver
 from app.core.logger import get_logger
 from agent.Supervisor_agent.supervisor_agent import supervisor
 from app.services.agent_state_builder import build_supervisor_state
+import numpy as np
 
 logger = get_logger(__name__)
 
@@ -323,7 +324,7 @@ class Tier1Filter:
             # State 생성 - 헬퍼 함수 사용
             state = build_supervisor_state(
                 group_id=self.group_id,
-                event_dict=event_dict,
+                event=event_dict,
                 ml_prediction=ml_prediction
             )
 
@@ -455,8 +456,14 @@ class Tier1Filter:
             
             is_threat = ml_prediction.get('is_threat', False)
             confidence = ml_prediction.get('confidence', 0.0)
-            event_id = event_dict.get('_event_id', '')
-            
+            event_id = event_dict.get('id', '')
+
+            # NumPy 타입을 Python native 타입으로 변환
+            if isinstance(is_threat, (np.bool_, np.generic)):
+                is_threat = bool(is_threat)
+            if isinstance(confidence, (np.floating, np.generic)):
+                confidence = float(confidence)
+
             # 필터링 결과 판단
             should_analyze = filter_result.get('should_analyze', True)
             filter_reason = filter_result.get('filter_reason', 'Unknown')
