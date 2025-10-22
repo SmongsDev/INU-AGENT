@@ -125,8 +125,8 @@ class BatchAnalyzer:
             for event, prediction in zip(events, results):
                 if prediction.get('error'):
                     continue
-                    
-                event_id = event.get('_event_id')
+
+                event_id = event.get('id')
                 if not event_id:
                     continue
                 

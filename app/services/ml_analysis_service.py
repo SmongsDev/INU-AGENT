@@ -82,7 +82,7 @@ class MLAnalysisService:
 
                     is_threat = prediction.get('is_threat', False)
                     confidence = prediction.get('confidence', 0.0)
-                    event_id = event_dict.get('_event_id', '')
+                    event_id = event_dict.get('id', '')
 
                     # ml_log 테이블 저장용 데이터
                     ml_log_data.append({
@@ -157,7 +157,7 @@ class MLAnalysisService:
             event_dict = threat_result.get('event_dict')
             ml_prediction = threat_result.get('ml_prediction', {})
             confidence = ml_prediction.get('confidence', 0.0)
-            event_id = event_dict.get('_event_id', 'Unknown')
+            event_id = event_dict.get('id', 'Unknown')
 
             # State 생성 - 헬퍼 함수 사용
             state = build_supervisor_state(
@@ -215,8 +215,8 @@ class MLAnalysisService:
         for ml_event, prediction in zip(ml_events, results):
             if prediction.get('error'):
                 continue
-            
-            event_id = ml_event.get('_event_id') 
+
+            event_id = ml_event.get('id')
             if not event_id:
                 continue
             
