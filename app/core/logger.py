@@ -2,6 +2,11 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 
+# httpx 및 기타 외부 라이브러리의 INFO 로그 끄기
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
+logging.getLogger("openai").setLevel(logging.WARNING)
+
 def get_logger(name: str) -> logging.Logger:
     """
     로거 인스턴스를 생성하고 반환합니다.
