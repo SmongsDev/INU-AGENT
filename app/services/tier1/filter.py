@@ -403,8 +403,8 @@ class Tier1Filter:
                     filter_log_data.append(processing_result.get('filter_data'))
 
             # 모든 Supervisor Agent 호출을 병렬로 실행
-            # if agent_tasks:
-            #     await asyncio.gather(*agent_tasks, return_exceptions=True)
+            if agent_tasks:
+                await asyncio.gather(*agent_tasks, return_exceptions=True)
 
             # filter_log 테이블에 저장 (정상으로 확정된 경우만)
             tier2_count = processed_count - false_positive_count
