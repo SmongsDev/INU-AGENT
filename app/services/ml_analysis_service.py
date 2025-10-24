@@ -109,16 +109,16 @@ class MLAnalysisService:
                         normal_events.append(analysis_result)
 
                 # ML 결과를 ml_log 테이블에 저장 (비동기 실행)
-                if ml_log_data:
-                    save_stats = await loop.run_in_executor(
-                        None,
-                        self.result_saver.save_batch_results,
-                        ml_log_data
-                    )
-                    logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
+                # if ml_log_data:
+                #     save_stats = await loop.run_in_executor(
+                #         None,
+                #         self.result_saver.save_batch_results,
+                #         ml_log_data
+                #     )
+                #     logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
 
                 # # 분기 처리를 백그라운드 태스크로 실행 (await 없이)
-                asyncio.create_task(self._process_analysis_results(threat_events, normal_events))
+                # asyncio.create_task(self._process_analysis_results(threat_events, normal_events))
 
                 logger.info(f"ML 분석 완료 및 백그라운드 처리 시작: {len(events_list)}개 처리, {len(threat_events)}개 위협 탐지, {len(normal_events)}개 정상")
 
@@ -196,8 +196,8 @@ class MLAnalysisService:
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Supervisor Agent로 병렬 전달")
 
             # 모든 위협 이벤트를 동시에 처리
-            tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
-            await asyncio.gather(*tasks, return_exceptions=True)
+            # tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
+            # await asyncio.gather(*tasks, return_exceptions=True)
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:
