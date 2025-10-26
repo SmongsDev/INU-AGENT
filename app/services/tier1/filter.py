@@ -183,20 +183,17 @@ class Tier1Filter:
             if event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "고위험 이벤트 감지",
-                    "risk_level": "high"
+                    "filter_reason": "고위험 이벤트 감지"
                 })
             elif event_name == "ConsoleLogin" and error_code:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "콘솔 로그인 실패 감지",
-                    "risk_level": "high"
+                    "filter_reason": "콘솔 로그인 실패 감지"
                 })
             elif management_event and not error_code and event_name in self.HIGH_RISK_EVENTS:
                 result.update({
                     "should_analyze": True,
-                    "filter_reason": "고위험 관리 이벤트",
-                    "risk_level": "high"
+                    "filter_reason": "고위험 관리 이벤트"
                 })
             elif event_name in self.MEDIUM_RISK_EVENTS:
                 # 중위험 이벤트는 시간대나 컨텍스트에 따라 분석 여부 결정
@@ -204,30 +201,16 @@ class Tier1Filter:
                 if should_analyze_medium:
                     result.update({
                         "should_analyze": True,
-                        "filter_reason": f"중위험 이벤트 의심 상황: {should_analyze_medium}",
-                        "risk_level": "medium"
+                        "filter_reason": f"중위험 이벤트 의심 상황: {should_analyze_medium}"
                     })
-                else:
-                    result.update({
-                        "risk_level": "medium"
-                    })
-            # elif event_name in self.LOW_RISK_EVENTS:
-            #     result.update({
-            #         "risk_level": "low"
-            #     })
             # 그 외 모든 경우는 기본값 유지 (should_analyze=False, ML 판단 확정)
-            else:
-                result.update({
-                    "risk_level": "low"
-                })
 
         except Exception as e:
             self.logger.error(f"Error filtering event dict {event_dict.get('_event_id', 'Unknown')}: {str(e)}")
             # 에러 발생 시에는 안전하게 Tier2로 전달
             result.update({
                 "should_analyze": True,
-                "filter_reason": "필터링 중 오류 발생",
-                "risk_level": "unknown"
+                "filter_reason": "필터링 중 오류 발생"
             })
 
         return result
@@ -467,15 +450,13 @@ class Tier1Filter:
             # 필터링 결과 판단
             should_analyze = filter_result.get('should_analyze', True)
             filter_reason = filter_result.get('filter_reason', 'Unknown')
-            risk_level = filter_result.get('risk_level', 'unknown')
 
             processing_result = {
                 'event_id': event_id,
                 'is_threat': is_threat,
                 'confidence': confidence,
                 'should_analyze': should_analyze,
-                'filter_reason': filter_reason,
-                'risk_level': risk_level
+                'filter_reason': filter_reason
             }
             # 다시 되돌릴 예정
             # if not should_analyze:
@@ -485,7 +466,6 @@ class Tier1Filter:
                 "filter_result": {
                     "should_analyze": should_analyze,  # False
                     "filter_reason": filter_reason,
-                    "risk_level": risk_level,
                     "ml_prediction": {
                         "is_threat": is_threat,
                         "confidence": confidence
