@@ -12,6 +12,7 @@ from reportlab.lib.units import cm
 import boto3
 import os
 
+
 # ------------------------
 # Cover Page
 # ------------------------
@@ -134,12 +135,10 @@ def build_security_report_elements(event_data: dict):
         leading=14
     )
 
-    # 기본 정보
     event_id = event_data.get("event_id", "N/A")
     timestamp = event_data.get("timestamp", "N/A")
     source = event_data.get("source", "N/A")
     event_name = event_data.get("event_name", "N/A")
-    user_id = event_data.get("user_id", "N/A")
     user_arn = event_data.get("user_arn", "N/A")
     source_ip = event_data.get("source_ip", "N/A")
     user_agent = event_data.get("user_agent", "N/A")
@@ -152,7 +151,6 @@ def build_security_report_elements(event_data: dict):
     timeline = event_data.get("Timeline", "N/A")
     mitre_mapping = event_data.get("Mitre Mapping", "N/A")
 
-    # Severity & Accuracy Section
     severity = event_data.get("severity", "N/A").capitalize()
     accuracy = event_data.get("accuracy", 0)
 
@@ -164,9 +162,9 @@ def build_security_report_elements(event_data: dict):
     severity_color = severity_colors.get(severity, "#000000")
 
     summary_text = (
-    f"This report has a <font color='{severity_color}'><b>{severity}</b></font> severity. "
-    f"(<b>{accuracy}%</b> accuracy)"
-)
+        f"This report has a <font color='{severity_color}'><b>{severity}</b></font> severity. "
+        f"(<b>{accuracy}%</b> accuracy)"
+    )
 
     summary_style = ParagraphStyle(
         "SummaryTitle",
@@ -179,7 +177,6 @@ def build_security_report_elements(event_data: dict):
 
     elements = [PageBreak(), Paragraph(summary_text, summary_style), Spacer(1, 35)]
 
-    # 표 섹션
     title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=15, leading=18)
     sections = [
         ("Basic Information", [
@@ -187,8 +184,7 @@ def build_security_report_elements(event_data: dict):
             ["Timestamp", timestamp],
             ["Source", source],
             ["Event Name", event_name],
-            ["User ID", user_id],
-            ["User ARN", user_arn],
+            ["User ARN", Paragraph(str(user_arn), wrap_style)],
             ["Source IP", source_ip],
             ["User Agent", user_agent],
             ["Session ID", session_id],
@@ -224,64 +220,11 @@ def build_security_report_elements(event_data: dict):
         elements.append(table)
         elements.append(Spacer(1, 35))
 
-    # Timeline
-    desc_style = ParagraphStyle("DescStyle", fontName="HYSMyeongJo-Medium", fontSize=11.5, leading=15)
-    elements.append(Paragraph("Timeline", title_style))
-    elements.append(Spacer(1, 18))
-    timeline_box = Table([[Paragraph(timeline, desc_style)]], colWidths=[16.2 * cm])
-    timeline_box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 12)
-    ]))
-    elements.append(timeline_box)
-    elements.append(Spacer(1, 35))
-
-    # Mitre Mapping
-    elements.append(Paragraph("Mitre Mapping", title_style))
-    elements.append(Spacer(1, 18))
-    mitre_box = Table([[Paragraph(mitre_mapping, desc_style)]], colWidths=[16.2 * cm])
-    mitre_box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 14),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 12)
-    ]))
-    elements.append(mitre_box)
-    elements.append(Spacer(1, 35))
-
-    # Recommendations
-    rec_style = ParagraphStyle("RecStyle", fontName="HYSMyeongJo-Medium", fontSize=10.5, leading=14)
-    rec_text = (
-        f"This event (<b>{event_name}</b>) was detected in <b>{region}</b>. "
-        f"Recommended actions:<br/><br/>"
-        f"1. Review access logs for <b>{user_id}</b>.<br/>"
-        f"2. Validate <b>{source_ip}</b> source legitimacy.<br/>"
-        f"3. If false positive: verify FP ID <b>{false_positive.get('fp_id', 'N/A')}</b> result status."
-    )
-
-    elements.append(Paragraph("Recommended Actions", title_style))
-    elements.append(Spacer(1, 18))
-    rec_box = Table([[Paragraph(rec_text, rec_style)]], colWidths=[16.2 * cm])
-    rec_box.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
-        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
-        ("LEFTPADDING", (0, 0), (-1, -1), 12),
-        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
-        ("TOPPADDING", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10)
-    ]))
-    elements.append(rec_box)
     return elements
 
 
 # ------------------------
-# Generate PDF + Upload S3
+# Generate PDF + Upload S3 (백엔드에서 event_data 전달받는 구조)
 # ------------------------
 def generate_full_pdf(company_name: str, event_data: dict):
     event_id = event_data.get("event_id", "E000")
@@ -304,13 +247,11 @@ def generate_full_pdf(company_name: str, event_data: dict):
 
     print(f"✅ PDF successfully generated: {output_file}")
 
-    # ✅ S3 Upload Section
-        # ✅ S3 Upload Section
     try:
         s3 = boto3.client("s3")
         bucket_name = "inu-security-reports-2025"
-        date_prefix = datetime.now().strftime("%Y-%m") 
-        folder_path = f"{company_name}/{date_prefix}/"  
+        date_prefix = datetime.now().strftime("%Y-%m")
+        folder_path = f"{company_name}/{date_prefix}/"
         s3_key = folder_path + os.path.basename(output_file)
 
         s3.upload_file(output_file, bucket_name, s3_key)
