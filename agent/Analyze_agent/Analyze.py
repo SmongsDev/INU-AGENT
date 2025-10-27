@@ -26,6 +26,7 @@ class Input(TypedDict):
 class Output(TypedDict):
     is_false_positive: bool
     confidence: float
+    similar_events: list
     explanation: str
 
 def Analyze_agent():
