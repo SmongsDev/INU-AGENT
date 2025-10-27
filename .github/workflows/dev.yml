@@ -27,8 +27,9 @@ jobs:
             User ec2-user
             IdentityFile ~/.ssh/inu-sdev3.pem
             StrictHostKeyChecking no
+
           Host inu-sdev3
-            HostName 10.0.1.100
+            HostName ${{ secrets.INU_SDEV3_HOST }}
             User ec2-user
             IdentityFile ~/.ssh/inu-sdev3.pem
             ProxyCommand ssh inu-public -W %h:%p
@@ -43,15 +44,14 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
 
-          # 4100번 포트 사용하는 프로세스 종료
-          pid=$(lsof -ti:4100)
+          pid=$(lsof -ti:${{ secrets.PORT }})
           if [ ! -z "$pid" ]; then
-            echo "Killing process using port 4100: $pid"
+            echo "Killing process using port ${{ secrets.PORT }}: $pid"
             kill -9 $pid || true
           fi
 
           # FastAPI 서버 완전 디태치 실행
-          nohup uvicorn app.main:app --host 0.0.0.0 --port 4100 --log-level info > uvicorn.log 2>&1 < /dev/null &
+          nohup uvicorn app.main:app --host 0.0.0.0 --port ${{ secrets.PORT }} --log-level info > uvicorn.log 2>&1 < /dev/null &
 
           exit
           EOF

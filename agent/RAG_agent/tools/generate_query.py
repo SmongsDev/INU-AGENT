@@ -14,7 +14,7 @@ def generate_query_or_respond(state: State):
     """
     response = (
         get_response_model(state["rag_model"])
-        .bind_tools([get_retriever_tool(state["retrive_cnt"], state["collection_name"])])
+        .bind_tools([get_retriever_tool(state["retrive_cnt"])])
         .invoke(state["messages"])
     )
     return {"messages": [response]}
