@@ -2,10 +2,9 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional
 from datetime import datetime
-from agent.Analyze_agent.Analyze import Analyze_agent
+from agent.main_agent import agent
 from ml.src.data.ml_result_saver import MLResultSaver
 from app.core.logger import get_logger
-from agent.Supervisor_agent.supervisor_agent import supervisor
 from app.services.agent_state_builder import build_supervisor_state
 import numpy as np
 
@@ -282,58 +281,61 @@ class Tier1Filter:
             # 에러 발생 시 안전하게 분석 필요로 판단
             return "컨텍스트 분석 오류"
 
-    def _run_supervisor_agent_sync(self, state: dict, event_id: str) -> None:
-        """Supervisor Agent를 동기적으로 실행 (별도 스레드에서 호출용)"""
+    def _run_agent_sync(self, event: dict, state: dict) -> dict:
+        """agent() 함수를 동기적으로 실행 (별도 스레드에서 호출용)
+
+        Args:
+            event: 이벤트 데이터
+            state: supervisor state
+
+        Returns:
+            agent() 함수의 결과 (report_data 또는 None)
+        """
         try:
-            supervisor_instance = supervisor(state)
-
-            # 스트리밍 결과 수집
-            agent_results = []
-            for chunk in supervisor_instance.stream(state):
-                agent_results.append(chunk)
-
-            self.logger.info(f"Supervisor Agent 재검증 완료: Event {event_id}")
-
+            result = agent(event, state)
+            return result
         except Exception as e:
-            self.logger.error(f"Supervisor Agent 재검증 오류 (Event {event_id}): {e}", exc_info=True)
+            self.logger.error(f"Agent 실행 오류: {e}", exc_info=True)
+            return None
 
-    async def _process_single_agent_call(self, original_result: dict, processing_result: dict) -> None:
-        """단일 이벤트를 Supervisor Agent로 전달 (비동기)"""
+    async def _process_single_agent_call(self, original_result: dict, processing_result: dict, state: dict) -> None:
+        """단일 이벤트를 agent() 함수로 전달 (비동기)
+
+        Args:
+            original_result: 원본 ML 분석 결과
+            processing_result: 필터링 처리 결과
+            state: 미리 생성된 supervisor state
+        """
         try:
             event_dict = original_result.get('event_dict')
-            ml_prediction = original_result.get('ml_prediction', {})
             event_id = processing_result.get('event_id', 'Unknown')
 
-            # State 생성 - 헬퍼 함수 사용
-            state = build_supervisor_state(
-                group_id=self.group_id,
-                event=event_dict,
-                ml_prediction=ml_prediction
-            )
-
-            # # Supervisor Agent를 별도 스레드에서 실행 (이벤트 루프 블로킹 방지)
+            # agent() 함수를 별도 스레드에서 실행
+            # (Analyze_agent + Supervisor_agent를 통합 실행)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
+            report_data = await loop.run_in_executor(
                 None,
-                self._run_supervisor_agent_sync,
-                state,
-                event_id
+                self._run_agent_sync,
+                event_dict,
+                state
             )
 
-            
-            result = Analyze_agent().invoke({"event": event_dict, "retrive_cnt": 5})
-            
+            if report_data:
+                self.logger.info(f"Agent 재검증 완료: Event {event_id}, Severity: {report_data.get('severity')}")
+            else:
+                self.logger.info(f"Agent 재검증 완료 (오탐 판정): Event {event_id}")
+
         except Exception as e:
             # Tier2 Agent 오류는 중요하므로 로깅 유지
             event_id = processing_result.get('event_id', 'Unknown')
-            self.logger.error(f"Supervisor Agent 재검증 오류 (Event {event_id}): {e}", exc_info=True)
+            self.logger.error(f"Agent 재검증 오류 (Event {event_id}): {e}", exc_info=True)
 
     async def process_ml_analysis_results(self, analysis_results: List[dict]):
         """
         ML이 정상으로 판단한 이벤트들에 대해 배치 처리로 추가 검증 필요성을 판단 (비동기)
 
         Args:
-            analysis_results: ML이 정상으로 판단한 이벤트들의 분석 결과 리스트
+            analysis_results: ML이 정상으로 판단한 이벤트들의 분석 결과 리스트 (state 포함)
         """
         if not analysis_results:
             self.logger.info("처리할 ML 분석 결과가 없습니다")
@@ -378,16 +380,19 @@ class Tier1Filter:
                     # Tier2 Agent로 전달하여 재검증 - Supervisor Agent 사용
                     filter_log_data.append(processing_result.get('filter_data'))
 
-                    # 비동기 Agent 호출 태스크 추가
-                    agent_tasks.append(self._process_single_agent_call(original_result, processing_result))
+                    # 미리 생성된 state를 사용
+                    state = original_result.get('state')
+                    if state:
+                        # 비동기 Agent 호출 태스크 추가
+                        agent_tasks.append(self._process_single_agent_call(original_result, processing_result, state))
                 else:
                     # ML 판단 확정 = 정상으로 최종 확정
                     false_positive_count += 1
                     filter_log_data.append(processing_result.get('filter_data'))
 
             # 모든 Supervisor Agent 호출을 병렬로 실행
-            # if agent_tasks:
-            #     await asyncio.gather(*agent_tasks, return_exceptions=True)
+            if agent_tasks:
+                await asyncio.gather(*agent_tasks, return_exceptions=True)
 
             # filter_log 테이블에 저장 (정상으로 확정된 경우만)
             tier2_count = processed_count - false_positive_count
