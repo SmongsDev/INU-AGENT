@@ -114,10 +114,20 @@ def login(
     )
 
 @router.post("/logout")
-def logout(response: Response, db: Session = Depends(get_db)):
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     """
-    로그아웃 - Refresh Token 쿠키 삭제
+    로그아웃 - Refresh Token 쿠키 삭제 및 DB 세션 만료
     """
+    # 쿠키에서 Refresh Token 읽기
+    refresh_token = request.cookies.get('refresh_token')
+
+    # Refresh Token이 있으면 DB에서 세션 만료 처리
+    if refresh_token:
+        db.query(UserSession).filter(
+            UserSession.refresh_token == refresh_token
+        ).update({"expired_at": datetime.now(timezone.utc)})
+        db.commit()
+
     # Refresh Token 쿠키 삭제
     response.delete_cookie(
         key="refresh_token",
@@ -177,16 +187,6 @@ def refresh_access_token(
 
     access_token = create_access_token(data=token_data)
     access_expires = datetime.now(timezone.utc) + timedelta(hours=1)
-
-    # Access Token 쿠키 갱신
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        expires=access_expires.timestamp(),
-        httponly=True,
-        secure=True,
-        samesite="lax"
-    )
 
     return RefreshTokenResponse(
         access_token=access_token,

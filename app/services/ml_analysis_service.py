@@ -6,10 +6,9 @@ from typing import List, Dict, Any
 
 # ML 분석 모듈 import
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "ml"))
-from agent.Analyze_agent.Analyze import Analyze_agent
+from agent.main_agent import agent
 from ml.src.analysis.predict_threats_optimized import OptimizedCloudTrailPredictor
 from ml.src.data.ml_result_saver import MLResultSaver
-from agent.Supervisor_agent.supervisor_agent import supervisor
 from app.services.tier1.filter import Tier1Filter
 from app.services.agent_state_builder import build_supervisor_state
 from datetime import datetime
@@ -109,16 +108,16 @@ class MLAnalysisService:
                         normal_events.append(analysis_result)
 
                 # ML 결과를 ml_log 테이블에 저장 (비동기 실행)
-                # if ml_log_data:
-                #     save_stats = await loop.run_in_executor(
-                #         None,
-                #         self.result_saver.save_batch_results,
-                #         ml_log_data
-                #     )
-                #     logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
+                if ml_log_data:
+                    save_stats = await loop.run_in_executor(
+                        None,
+                        self.result_saver.save_batch_results,
+                        ml_log_data
+                    )
+                    logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
 
-                # # 분기 처리를 백그라운드 태스크로 실행 (await 없이)
-                # asyncio.create_task(self._process_analysis_results(threat_events, normal_events))
+                # 분기 처리를 백그라운드 태스크로 실행 (await 없이)
+                asyncio.create_task(self._process_analysis_results(threat_events, normal_events))
 
                 logger.info(f"ML 분석 완료 및 백그라운드 처리 시작: {len(events_list)}개 처리, {len(threat_events)}개 위협 탐지, {len(normal_events)}개 정상")
 
@@ -134,24 +133,30 @@ class MLAnalysisService:
             logger.error(f"ML 분석 오류: {e}")
             return {"processed": 0, "threats": 0, "normal": 0, "error": str(e)}
     
-    def _run_supervisor_agent_sync(self, state: dict, event_id: str, confidence: float) -> None:
-        """Supervisor Agent를 동기적으로 실행 (별도 스레드에서 호출용)"""
+    def _run_agent_sync(self, event: dict, state: dict) -> dict:
+        """agent() 함수를 동기적으로 실행 (별도 스레드에서 호출용)
+
+        Args:
+            event: 이벤트 데이터
+            state: supervisor state
+
+        Returns:
+            agent() 함수의 결과 (report_data 또는 None)
+        """
         try:
-            supervisor_instance = supervisor(state)
-
-            # 스트리밍 결과 수집
-            agent_results = []
-            for chunk in supervisor_instance.stream(state):
-                agent_results.append(chunk)
-                logger.debug(f"Agent chunk: {chunk}")
-
-            logger.info(f"Supervisor Agent 분석 완료: Event {event_id} - 신뢰도: {confidence:.2f}")
-
+            result = agent(event, state)
+            return result
         except Exception as e:
-            logger.error(f"Supervisor Agent 분석 오류: {e}", exc_info=True)
+            logger.error(f"Agent 실행 오류: {e}", exc_info=True)
+            return None
 
-    async def _process_single_threat_event(self, threat_result: dict) -> None:
-        """단일 위협 이벤트를 Supervisor Agent로 전달 (비동기)"""
+    async def _process_single_threat_event(self, threat_result: dict, state: dict) -> None:
+        """단일 위협 이벤트를 agent() 함수로 전달 (비동기)
+
+        Args:
+            threat_result: 위협 이벤트 결과 딕셔너리
+            state: 미리 생성된 supervisor state
+        """
         try:
             # 이벤트 데이터와 ML 분석 결과 추출
             event_dict = threat_result.get('event_dict')
@@ -159,52 +164,55 @@ class MLAnalysisService:
             confidence = ml_prediction.get('confidence', 0.0)
             event_id = event_dict.get('id', 'Unknown')
 
-            # State 생성 - 헬퍼 함수 사용
-            state = build_supervisor_state(
-                group_id=self.group_id,
-                event=event_dict,
-                ml_prediction=ml_prediction
-            )
-
-
-            # Supervisor Agent를 별도 스레드에서 실행 (이벤트 루프 블로킹 방지)
+            # agent() 함수를 별도 스레드에서 실행
+            # (Analyze_agent + Supervisor_agent를 통합 실행)
             loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
+            report_data = await loop.run_in_executor(
                 None,
-                self._run_supervisor_agent_sync,
-                state,
-                event_id,
-                confidence
+                self._run_agent_sync,
+                event_dict,
+                state
             )
 
-            # Analyze_agent를 병렬 처리를 위해 별도 스레드에서 실행
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(
-                None,
-                lambda: Analyze_agent().invoke({"event": event_dict, "retrive_cnt": 5})
-            )
-            logger.info(f"Analyze_agent 분석 완료: Event {event_id} - 신뢰도: {confidence:.2f}")
+            if report_data:
+                logger.info(f"Agent 분석 완료: Event {event_id} - 신뢰도: {confidence:.2f}, Severity: {report_data.get('severity')}")
+            else:
+                logger.info(f"Agent 분석 완료 (오탐 판정): Event {event_id} - 신뢰도: {confidence:.2f}")
 
         except Exception as e:
-            logger.error(f"Supervisor Agent 분석 오류: {e}", exc_info=True)
+            logger.error(f"Agent 분석 오류: {e}", exc_info=True)
 
     async def _process_analysis_results(self, threat_events: List[dict], normal_events: List[dict]):
-        """ML 분석 결과에 따른 분기 처리 (비동기)"""
+        """ML 분석 결과에 따른 분기 처리 (비동기)
+
+        각 이벤트에 대해 state를 미리 생성한 후 해당 경로로 전달
+        """
 
         # 1. ML 위협 탐지 이벤트들 → Supervisor Agent로 병렬 전달
         if threat_events:
             logger.info(f"ML 위협 탐지: {len(threat_events)}개 이벤트 → Supervisor Agent로 병렬 전달")
 
-            # 모든 위협 이벤트를 동시에 처리
-            # tasks = [self._process_single_threat_event(threat_result) for threat_result in threat_events]
-            # await asyncio.gather(*tasks, return_exceptions=True)
+            threat_tasks = []
+            for threat_result in threat_events:
+                state = build_supervisor_state(group_id=self.group_id)
+
+                threat_tasks.append(self._process_single_threat_event(threat_result, state))
+
+            await asyncio.gather(*threat_tasks, return_exceptions=True)
 
         # 2. ML 정상 판단 이벤트들 → filter_log에 저장
         if normal_events:
-            # 기존 Tier1 필터 로직 (비동기로 실행)
+            # (Tier1 필터에서 재검증이 필요한 경우를 위해)
+            state = build_supervisor_state(group_id=self.group_id)
+
+            normal_events_with_state = []
+            for normal_result in normal_events:
+                normal_result['state'] = state
+                normal_events_with_state.append(normal_result)
+
             if self.tier1_filter:
-                logger.info(f"Tier1 필터 처리: ML 정상 판단 {len(normal_events)}개 이벤트")
-                await self.tier1_filter.process_ml_analysis_results(normal_events)
+                logger.info(f"Tier1 필터 처리: ML 정상 판단 {len(normal_events_with_state)}개 이벤트")
+                await self.tier1_filter.process_ml_analysis_results(normal_events_with_state)
     
     
     def _prepare_db_results(self, ml_events: List[dict], results: List[dict]) -> tuple:

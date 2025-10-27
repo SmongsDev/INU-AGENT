@@ -4,8 +4,7 @@ from sqlalchemy import and_, or_
 from typing import List, Optional
 from uuid import UUID
 from app.db.session import get_db
-from app.db.models import FilterLog, MLLog, Event, CloudTrail
-from app.schemas.events import FilterLog as FilterLogSchema
+from app.db.models import FalsePositiveLog, MLLog, Event, CloudTrail
 from app.core.auth import get_group_id_from_token
 from datetime import datetime
 
@@ -122,9 +121,9 @@ def get_threats(
     """
 
     try:
-        # 기본 쿼리: FilterLog와 관련 테이블들을 조인
+        # 기본 쿼리: FalsePositiveLog와 관련 테이블들을 조인
         query = db.query(
-            FilterLog,
+            FalsePositiveLog,
             MLLog.event_id,
             MLLog.confidence,
             Event.source_ip,
@@ -138,7 +137,7 @@ def get_threats(
             CloudTrail.user_agent,
             CloudTrail.request_parameters
         ).join(
-            MLLog, FilterLog.id == MLLog.id
+            MLLog, FalsePositiveLog.id == MLLog.id
         ).join(
             Event, MLLog.event_id == Event.id
         ).outerjoin(
@@ -152,16 +151,14 @@ def get_threats(
 
         # 응답 데이터 구성
         threat_data = []
-        for filter_log, event_id, confidence, event_source_ip, created_at, event_name, event_time, cloudtrail_source_ip, user_identity, aws_region, event_source, user_agent, request_parameters in results:
-            # filter_log.result에서 추가 정보 추출
-            result_data = filter_log.result or {}
-            ml_prediction = result_data.get('ml_prediction', {})
-
+        for false_positive_log, event_id, confidence, event_source_ip, created_at, event_name, event_time, cloudtrail_source_ip, user_identity, aws_region, event_source, user_agent, request_parameters in results:
             # RoleName 추출
             role_name = extract_role_name(user_identity)
 
-            # Predicted Threats 포맷
-            predicted_threats = format_predicted_threat(ml_prediction)
+            # FalsePositiveLog 데이터 사용
+            is_false_positive = false_positive_log.result if false_positive_log.result is not None else False
+            fp_confidence = false_positive_log.confidence if false_positive_log.confidence is not None else 0.0
+            fp_reason = false_positive_log.reason or "No reason provided"
 
             threat_item = {
                 "event_id": str(event_id),
@@ -179,10 +176,12 @@ def get_threats(
 
                 # 기존 필드들
                 "role_name": role_name,
-                "predicted_threats": predicted_threats,
+                "confidence": confidence,
 
-                # 전체 result 데이터도 포함
-                "filter_result": result_data,
+                # FalsePositiveLog 정보
+                "is_false_positive": is_false_positive,
+                "false_positive_confidence": fp_confidence,
+                "false_positive_reason": fp_reason,
 
                 # 추가 메타 정보
                 "created_at": created_at.isoformat() if created_at else None
