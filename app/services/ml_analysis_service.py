@@ -109,13 +109,13 @@ class MLAnalysisService:
                         normal_events.append(analysis_result)
 
                 # ML 결과를 ml_log 테이블에 저장 (비동기 실행)
-                if ml_log_data:
-                    save_stats = await loop.run_in_executor(
-                        None,
-                        self.result_saver.save_batch_results,
-                        ml_log_data
-                    )
-                    logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
+                # if ml_log_data:
+                #     save_stats = await loop.run_in_executor(
+                #         None,
+                #         self.result_saver.save_batch_results,
+                #         ml_log_data
+                #     )
+                #     logger.info(f"ML 결과 저장: {save_stats['success']}개 성공")
 
                 # # 분기 처리를 백그라운드 태스크로 실행 (await 없이)
                 asyncio.create_task(self._process_analysis_results(threat_events, normal_events))
