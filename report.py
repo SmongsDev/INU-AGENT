@@ -154,7 +154,7 @@ def build_security_report_elements(event_data: dict):
 
     # Severity & Accuracy Section
     severity = event_data.get("severity", "N/A").capitalize()
-    accuracy = event_data.get("accuracy", "N/A")
+    accuracy = event_data.get("accuracy", 0)
 
     severity_colors = {
         "High": "#FF4D4F",
@@ -164,9 +164,9 @@ def build_security_report_elements(event_data: dict):
     severity_color = severity_colors.get(severity, "#000000")
 
     summary_text = (
-        f"This report has a <font color='{severity_color}'><b>{severity}</b></font> severity. "
-        f"(<b>{accuracy}</b> accuracy)"
-    )
+    f"This report has a <font color='{severity_color}'><b>{severity}</b></font> severity. "
+    f"(<b>{accuracy}%</b> accuracy)"
+)
 
     summary_style = ParagraphStyle(
         "SummaryTitle",
