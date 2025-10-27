@@ -9,7 +9,6 @@ from agent.RAG_agent.RAG import RAG_agent
 from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.config import Config
 from agent.Supervisor_agent.tools.base import create_handoff_tool, get_supervisor_llm
-from report import generate_full_pdf
 class State(TypedDict):
     messages: Annotated[list, add_messages]
     event: dict
@@ -18,7 +17,6 @@ class State(TypedDict):
     rag_model: str
     retrive_cnt: int
     report_option: dict
-    collection_name: str
 
 # Create agent instances
 SQL_agent_instance = SQL_agent()
@@ -52,7 +50,7 @@ def create_supervisor_agent(model_name: str):
         name="supervisor",
     )
 
-def supervisor(state: State):
+def Supervisor_agent(state: State):
     """Supervisor workflow를 생성하고 반환합니다."""
     supervisor_agent = create_supervisor_agent(state["sup_model"])
     
