@@ -23,6 +23,11 @@ class SourceProduct(str, Enum):
     cloudwatch = "cloudwatch"
     guardduty = "guardduty"
 
+class SeverityLevel(str, Enum):
+    low = "low"
+    medium = "medium"
+    high = "high"
+
 class TimestampedModel(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: Optional[datetime] = None

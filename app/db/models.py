@@ -1,13 +1,13 @@
 from sqlalchemy import (
     Column, Integer, String, ForeignKey,
-    Boolean, Enum, TIMESTAMP, Float
+    Boolean, Enum, TIMESTAMP, Float, Text
 )
 from sqlalchemy.dialects.postgresql import UUID as PgUUID, INET, JSONB
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import relationship, declarative_base
 from datetime import datetime
 import uuid
-from app.schemas.base import RoleType, NotifFreq, NotifChannel, SourceProduct
+from app.schemas.base import RoleType, NotifFreq, NotifChannel, SourceProduct, SeverityLevel
 
 Base = declarative_base()
 
@@ -93,6 +93,7 @@ class Event(Base):
     cloudtrails = relationship("CloudTrail", back_populates="event")
     cloudwatches = relationship("CloudWatch", back_populates="event")
     documents = relationship("Document", back_populates="event")
+    agent_results = relationship("AgentResult", back_populates="event")
 
 class CloudTrail(Base):
     __tablename__ = "cloudtrail"
@@ -156,6 +157,27 @@ class MLLog(Base):
     event = relationship("Event", back_populates="ml_logs")
     false_positive_logs = relationship("FalsePositiveLog", back_populates="ml_log")
     filter_logs = relationship("FilterLog", back_populates="ml_log")
+
+class AgentResult(Base):
+    __tablename__ = "agent_result"
+
+    id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
+    severity = Column(Enum(SeverityLevel))
+    timeline = Column(Text)
+    mitre_mapping = Column(Text)
+    report = Column(Text)
+
+    # Relationships
+    event = relationship("Event", back_populates="agent_results")
+
+class AgentTotal(Base):
+    __tablename__ = "agent_total"
+
+    id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
+    context = Column(Text)
+
+    # Relationships
+    event = relationship("Event", back_populates="agent_total")
 
 class FalsePositiveLog(Base):
     __tablename__ = "false_positive_log"
@@ -227,5 +249,22 @@ class VwEventsEnriched(Base):
     confidence     = Column(Float)
     result         = Column(JSONB)
     alert_key      = Column(String)
+
+class VwAlertsSummary(Base):
+    __tablename__ = "vw_alerts_summary"
+    __table_args__ = {"info": {"is_view": True}}
+
+    group_id = Column(PgUUID(as_uuid=True), primary_key=True)
+    high = Column(Integer, nullable=False)
+    medium = Column(Integer, nullable=False)
+    low = Column(Integer, nullable=False)
+
+class VwAlertsTop(Base):
+    __tablename__ = "vw_alerts_top"
+    __table_args__ = {"info": {"is_view": True}}
+
+    group_id = Column(PgUUID(as_uuid=True), primary_key=True)
+    event_name = Column(String, primary_key=True)
+    count = Column(Integer, nullable=False)
 
 
