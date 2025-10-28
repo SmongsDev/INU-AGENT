@@ -86,31 +86,21 @@ class AgentStateBuilder:
             self._config_cache = self.DEFAULT_CONFIG.copy()
             return self._config_cache
 
-    def build_state(
-        self,
-        event: Dict[str, Any],
-        ml_prediction: Optional[Dict[str, Any]] = None,
-        messages: Optional[List[Dict[str, str]]] = None,
-        additional_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def build_state(self) -> Dict[str, Any]:
         """
-        Supervisor Agent에 전달할 state를 생성
+        agent() 함수에 전달할 state를 생성
 
-        Args:
-            event: 이벤트 데이터 딕셔너리
-            ml_prediction: ML 분석 결과 (선택적)
-            messages: 초기 메시지 리스트 (선택적)
-            additional_context: 추가 컨텍스트 정보 (선택적)
+        agent() 함수는 다음 필드만 사용:
+        - sup_model, sql_model, rag_model, retrive_cnt, report_option
 
         Returns:
-            Supervisor Agent state 딕셔너리
+            agent() 함수에 필요한 state 딕셔너리
         """
         # DB에서 설정 로드
         config = self._load_agent_config()
 
-        # 기본 state 구조 생성
+        # agent() 함수에 필요한 필드만 포함
         state = {
-            "messages": messages if messages is not None else [],
             "sup_model": config.get("sup_model", "gpt-4.1"),
             "sql_model": config.get("sql_model", "gpt-4.1"),
             "rag_model": config.get("rag_model", "gpt-4.1"),
@@ -119,57 +109,33 @@ class AgentStateBuilder:
                 "timeline": True,
                 "mapping": True,
             }),
-            "event": event,
         }
-
-        # ML 분석 결과 추가
-        if ml_prediction:
-            state["ml_analysis_result"] = {
-                "is_threat": ml_prediction.get("is_threat", False),
-                "confidence": ml_prediction.get("confidence", 0.0),
-                "prediction_details": ml_prediction.get("prediction_details", {})
-            }
-
-        # 추가 컨텍스트 정보 병합
-        if additional_context:
-            state.update(additional_context)
 
         return state
 
 
 def build_supervisor_state(
     group_id: str,
-    event: Dict[str, Any],
-    ml_prediction: Optional[Dict[str, Any]] = None,
-    messages: Optional[List[Dict[str, str]]] = None,
-    additional_context: Optional[Dict[str, Any]] = None,
     db: Optional[Session] = None
 ) -> Dict[str, Any]:
     """
-    Supervisor Agent state 생성을 위한 편의 함수
+    agent() 함수에 전달할 state 생성을 위한 편의 함수
+
+    agent() 함수는 다음 필드만 사용:
+    - sup_model, sql_model, rag_model, retrive_cnt, report_option
 
     Args:
         group_id: 그룹 ID (UUID 문자열)
-        event: 이벤트 데이터 딕셔너리
-        ml_prediction: ML 분석 결과 (선택적)
-        messages: 초기 메시지 리스트 (선택적)
-        additional_context: 추가 컨텍스트 정보 (선택적)
         db: SQLAlchemy 세션 (선택적)
 
     Returns:
-        Supervisor Agent state 딕셔너리
+        agent() 함수에 필요한 state 딕셔너리
 
     Example:
         >>> state = build_supervisor_state(
-        ...     group_id="550e8400-e29b-41d4-a716-446655440000",
-        ...     event={"event_name": "CreateUser", ...},
-        ...     ml_prediction={"is_threat": True, "confidence": 0.95}
+        ...     group_id="550e8400-e29b-41d4-a716-446655440000"
         ... )
+        >>> # state = {"sup_model": "gpt-4.1", "sql_model": "gpt-4.1", ...}
     """
     builder = AgentStateBuilder(group_id=group_id, db=db)
-    return builder.build_state(
-        event=event,
-        ml_prediction=ml_prediction,
-        messages=messages,
-        additional_context=additional_context
-    )
+    return builder.build_state()

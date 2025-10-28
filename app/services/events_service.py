@@ -82,7 +82,7 @@ class EventService:
         """소스 레코드를 표준화된 딕셔너리로 변환"""
         try:
             base_dict = {
-                '_event_id': str(source_record.id),
+                'id': str(source_record.id),
                 '_source_product': source_product.value,
                 'created_at': source_record.event_time.isoformat() if hasattr(source_record, 'event_time') and source_record.event_time else '',
                 'updated_at': None,
