@@ -94,6 +94,7 @@ class Event(Base):
     cloudwatches = relationship("CloudWatch", back_populates="event")
     documents = relationship("Document", back_populates="event")
     agent_results = relationship("AgentResult", back_populates="event")
+    agent_total = relationship("AgentTotal", back_populates="event", uselist=False)
 
 class CloudTrail(Base):
     __tablename__ = "cloudtrail"
