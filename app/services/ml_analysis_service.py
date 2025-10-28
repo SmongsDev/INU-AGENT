@@ -144,7 +144,7 @@ class MLAnalysisService:
             agent() 함수의 결과 (report_data 또는 None)
         """
         try:
-            result = agent(event, state)
+            result = agent(event, state, self.group_id)
             return result
         except Exception as e:
             logger.error(f"Agent 실행 오류: {e}", exc_info=True)
