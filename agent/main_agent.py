@@ -1,11 +1,51 @@
 import json
 import re
+from datetime import datetime
 
 from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.supervisor_agent import Supervisor_agent
 from report import generate_full_pdf
 
-def agent(event: dict, state: dict):
+
+def is_unusual_time(timestamp: str) -> bool:
+    try:
+        # Parse timestamp
+        if isinstance(timestamp, str):
+            # Handle various timestamp formats
+            if '+' in timestamp or 'Z' in timestamp:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(timestamp)
+        else:
+            return False
+        
+        hour = dt.hour
+        
+        # Business hours: 08:00 ~ 19:00 (8 <= hour < 19)
+        if 8 <= hour < 19:
+            return False  # Normal business hours
+        else:
+            return True   # Unusual time (outside business hours)
+            
+    except (ValueError, AttributeError, TypeError) as e:
+        print(f"Failed to parse timestamp '{timestamp}': {e}")
+        return False  # Default to False if parsing fails
+
+
+def is_new_location(region: str) -> bool:
+
+    if not region:
+        return False  # Region 정보가 없으면 False
+    
+    # Expected region
+    expected_region = "ap-northeast-2"
+    
+    if region.lower() == expected_region.lower():
+        return False  # Expected region
+    else:
+        return True   # New/unusual location
+
+def agent(event: dict, state: dict,):
     analyze_agent = Analyze_agent()
     analyze_result = analyze_agent.invoke({"event": event, "retrive_cnt": 5})
 
@@ -109,8 +149,8 @@ def agent(event: dict, state: dict):
                     "Mitre Mapping": report.get("mitre_mapping", "N/A"),
                     
                     "behavior": {
-                        "unusual_time": True,  # TODO: 실제 로직으로 판단
-                        "new_location": True,  # TODO: 실제 로직으로 판단
+                        "unusual_time": is_unusual_time(event.get("event_time", "")),
+                        "new_location": is_new_location(event.get("aws_region", "")),
                     },
                 }
 
@@ -124,47 +164,3 @@ def agent(event: dict, state: dict):
         
         return None
 
-    
-
-
-if __name__ == "__main__":
-
-    event =   {
-    "id": "a3aa0bc6-63aa-439b-ae8c-e664aed2b0a1",
-    "event_id": "fa44955e-4ede-3893-ba6a-6bd824163e67",
-    "event_version": "1.11",
-    "event_time": "2025-10-02 12:39:30+00",
-    "event_source": "s3.amazonaws.com",
-    "event_name": "GetBucketTagging",
-    "event_category": "Management",
-    "event_type": "AwsApiCall",
-    "aws_region": "ap-northeast-2",
-    "read_only": True,
-    "request_id": "ZDSCGSJFQRAFDJPQ",
-    "source_ip": None,
-    "user_agent": "config.amazonaws.com",
-    "management_event": True,
-    "recipient_account_id": "093342385579",
-    "session_credential_from_console": None,
-    "shared_event_id": None,
-    "error_code": None,
-    "error_message": None,
-    "user_identity": "{\"arn\": \"arn:aws:sts::093342385579:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe\", \"type\": \"AssumedRole\", \"userName\": None, \"accountId\": \"093342385579\", \"accessKeyId\": \"ASIARLO5DYWV2YVKDE2P\", \"principalId\": \"AROARLO5DYWVSPDR2YBTN:AWSConfig-Describe\"}",
-    "tls_details": None,
-    "request_parameters": "{\"Host\": \"stratus-red-team-dns-delete-bucket-cbizhmnopz.s3.ap-northeast-2.amazonaws.com\", \"tagging\": \"\", \"bucketName\": \"stratus-red-team-dns-delete-bucket-cbizhmnopz\"}",
-    "response_elements": "None",
-    "insight_details": None,
-    "resources": None
-  }
-    state = {
-
-        "sup_model": "gpt-4.1",
-        "sql_model": "gpt-4.1",
-        "rag_model": "gpt-4.1",
-        "retrive_cnt": 5,
-        "report_option": {
-            "timeline": True,
-            "mapping": True,
-        },
-    }
-    agent(event, state)
