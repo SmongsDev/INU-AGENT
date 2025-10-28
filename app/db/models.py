@@ -160,7 +160,7 @@ class MLLog(Base):
     filter_logs = relationship("FilterLog", back_populates="ml_log")
 
 class AgentResult(Base):
-    __tablename__ = "agent_result"
+    __tablename__ = "agent_results"
 
     id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
     severity = Column(Enum(SeverityLevel))
