@@ -5,7 +5,8 @@ from datetime import datetime
 from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.supervisor_agent import Supervisor_agent
 from report import generate_full_pdf
-
+from app.db.session import SessionLocal
+from app.db.models import AgentResult, AgentTotal, SeverityLevel
 
 def is_unusual_time(timestamp: str) -> bool:
     try:
@@ -45,13 +46,13 @@ def is_new_location(region: str) -> bool:
     else:
         return True   # New/unusual location
 
-def agent(event: dict, state: dict,):
+def agent(event: dict, state: dict, group_id: str):
     analyze_agent = Analyze_agent()
     analyze_result = analyze_agent.invoke({"event": event, "retrive_cnt": 5})
 
     is_false_positive = analyze_result.get("is_false_positive")
 
-    if not is_false_positive:
+    if is_false_positive:
         return None
     
     else:
@@ -117,11 +118,22 @@ def agent(event: dict, state: dict,):
                                     break
                 
                 if not json_str or '"severity"' not in json_str:
-                    print("Could not find valid JSON with 'severity' field in supervisor's response.")
-                    print("Content:", content[:500])  # Print first 500 chars for debugging
                     return None
                 
                 report = json.loads(json_str)
+
+                # Parse user_identity to extract ARN
+                user_arn = "N/A"
+                user_identity_str = event.get("user_identity", "")
+                if user_identity_str:
+                    try:
+                        if isinstance(user_identity_str, str):
+                            user_identity_dict = json.loads(user_identity_str)
+                        else:
+                            user_identity_dict = user_identity_str
+                        user_arn = user_identity_dict.get("arn", "N/A")
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        user_arn = "N/A"
 
                 # Build detailed report_data dict
                 report_data = {
@@ -131,7 +143,7 @@ def agent(event: dict, state: dict,):
                     "timestamp": event.get("event_time", "N/A"),
                     "source": event.get("event_source", "N/A"),
                     "event_name": event.get("event_name", "N/A"),
-                    "user_arn": event.get("user_identity", "N/A"),
+                    "user_arn": user_arn,
                     "source_ip": event.get("source_ip", "N/A"),
                     "user_agent": event.get("user_agent", "N/A"),
                     "session_id": event.get("session_credential_from_console", "N/A"),
@@ -154,7 +166,86 @@ def agent(event: dict, state: dict,):
                     },
                 }
 
-                generate_full_pdf("accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf", report_data)
+                report_link = generate_full_pdf(group_id, report_data)
+
+                # DB에 저장
+                db = SessionLocal()
+                try:
+                    # Severity를 enum으로 변환
+                    severity_str = report_data.get("severity", "low").lower()
+                    severity_map = {
+                        "low": SeverityLevel.low,
+                        "medium": SeverityLevel.medium,
+                        "high": SeverityLevel.high
+                    }
+                    severity_enum = severity_map.get(severity_str, SeverityLevel.low)
+                    
+                    # 1. AgentResult 레코드 생성
+                    agent_result = AgentResult(
+                        id=event.get("id"),
+                        severity=severity_enum,
+                        timeline=report_data.get("Timeline", ""),
+                        mitre_mapping=report_data.get("Mitre Mapping", ""),
+                        report=report_link
+                    )
+                    
+                    # AgentResult 저장 (upsert)
+                    existing_result = db.query(AgentResult).filter(AgentResult.id == event.get("id")).first()
+                    if existing_result:
+                        # Update existing record
+                        existing_result.severity = severity_enum
+                        existing_result.timeline = report_data.get("Timeline", "")
+                        existing_result.mitre_mapping = report_data.get("Mitre Mapping", "")
+                        existing_result.report = report_link
+                    else:
+                        # Insert new record
+                        db.add(agent_result)
+                    
+                    # 2. AgentTotal 레코드 생성
+                    def serialize_for_jsonb(data):
+                        if isinstance(data, dict):
+                            result = {}
+                            for key, value in data.items():
+                                if key == "messages":
+                                    serialized_msgs = []
+                                    for msg in value:
+                                        if hasattr(msg, 'dict'):
+                                            serialized_msgs.append(msg.dict())
+                                        elif isinstance(msg, dict):
+                                            serialized_msgs.append(msg)
+                                        else:
+                                            serialized_msgs.append({"content": str(msg)})
+                                    result[key] = serialized_msgs
+                                else:
+                                    result[key] = value
+                            return result
+                        return data
+                    
+                    content_data = serialize_for_jsonb(supervisor_result)
+                    
+                    agent_total = AgentTotal(
+                        id=event.get("id"),
+                        content=content_data
+                    )
+                    
+                    # AgentTotal 저장 (upsert)
+                    existing_total = db.query(AgentTotal).filter(AgentTotal.id == event.get("id")).first()
+                    if existing_total:
+                        # Update existing record
+                        existing_total.content = content_data
+                    else:
+                        # Insert new record
+                        db.add(agent_total)
+                    
+                    db.commit()
+                    print(f"✅ AgentResult and AgentTotal saved to DB for event_id: {event.get('id')}")
+                    
+                except Exception as e:
+                    db.rollback()
+                    print(f"❌ Failed to save to DB: {e}")
+                finally:
+                    db.close()
+
                 return None
                     
             except json.JSONDecodeError as e:
@@ -163,4 +254,3 @@ def agent(event: dict, state: dict,):
                 return None
         
         return None
-
