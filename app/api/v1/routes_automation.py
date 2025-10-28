@@ -45,9 +45,9 @@ def get_automation_data(
     """
 
     try:
-        # 기본 쿼리: Event, CloudTrail, AgentResult 조인
+        # 기본 쿼리: AgentResult를 메인으로 Event, CloudTrail 조인
         query = db.query(
-            Event.id.label('event_id'),
+            AgentResult.id.label('event_id'),
             CloudTrail.event_name,
             CloudTrail.source_ip,
             CloudTrail.event_time,
@@ -55,9 +55,9 @@ def get_automation_data(
             AgentResult.mitre_mapping,
             AgentResult.report,
         ).join(
-            CloudTrail, Event.id == CloudTrail.id
-        ).outerjoin(
-            AgentResult, Event.id == AgentResult.id
+            Event, AgentResult.id == Event.id
+        ).join(
+            CloudTrail, AgentResult.id == CloudTrail.id
         ).filter(
             Event.group_id == group_id
         )
@@ -122,7 +122,7 @@ def get_automation_data_by_id(
     try:
         # 특정 이벤트 조회
         result = db.query(
-            Event.id.label('event_id'),
+            AgentResult.id.label('event_id'),
             CloudTrail.event_name,
             CloudTrail.source_ip,
             CloudTrail.event_time,
@@ -130,12 +130,12 @@ def get_automation_data_by_id(
             AgentResult.mitre_mapping,
             AgentResult.report,
         ).join(
-            CloudTrail, Event.id == CloudTrail.id
-        ).outerjoin(
-            AgentResult, Event.id == AgentResult.id
+            Event, AgentResult.id == Event.id
+        ).join(
+            CloudTrail, AgentResult.id == CloudTrail.id
         ).filter(
             Event.group_id == group_id,
-            Event.id == event_id
+            AgentResult.id == event_id
         ).first()
 
         if not result:
