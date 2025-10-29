@@ -1,250 +1,52 @@
 import json
 import re
-from datetime import datetime, timezone
-from ipaddress import ip_address, ip_network
+from datetime import datetime
 
 from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.supervisor_agent import Supervisor_agent
 from report import generate_full_pdf
+from app.db.session import SessionLocal
+from app.db.models import AgentResult, AgentTotal, SeverityLevel
 
-DEFAULT_BUSINESS_HOURS = (8, 18)  # 08:00~18:00
-PRIVATE_NETWORKS = (
-    ip_network("10.0.0.0/8"),
-    ip_network("172.16.0.0/12"),
-    ip_network("192.168.0.0/16"),
-    ip_network("100.64.0.0/10"),
-    ip_network("fc00::/7"),
-    ip_network("fe80::/10"),
-)
-
-
-def _parse_iso_datetime(value):
-    if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
-    if isinstance(value, (int, float)):
-        return datetime.fromtimestamp(value, tz=timezone.utc)
-    if isinstance(value, str):
-        candidate = value.strip()
-        if not candidate:
-            return None
-        if candidate.endswith("Z"):
-            candidate = candidate[:-1] + "+00:00"
-        try:
-            return datetime.fromisoformat(candidate)
-        except ValueError:
-            for date_format in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
-                try:
-                    return datetime.strptime(candidate, date_format).replace(tzinfo=timezone.utc)
-                except ValueError:
-                    continue
-    return None
-
-
-def _parse_hour(value):
-    if value is None:
-        return None
-    if isinstance(value, (int, float)):
-        return int(value)
-    if isinstance(value, str):
-        match = re.search(r"\d{1,2}", value)
-        if match:
-            return int(match.group(0))
-    return None
-
-
-def _resolve_business_hours(config):
-    start_hour, end_hour = DEFAULT_BUSINESS_HOURS
-
-    if isinstance(config, dict):
-        start_candidate = _parse_hour(
-            config.get("start") or config.get("from") or config.get("begin")
-        )
-        end_candidate = _parse_hour(config.get("end") or config.get("to") or config.get("until"))
-    elif isinstance(config, (list, tuple)) and len(config) >= 2:
-        start_candidate = _parse_hour(config[0])
-        end_candidate = _parse_hour(config[1])
-    elif isinstance(config, str):
-        parts = re.findall(r"\d{1,2}", config)
-        if len(parts) >= 2:
-            start_candidate = int(parts[0])
-            end_candidate = int(parts[1])
+def is_unusual_time(timestamp: str) -> bool:
+    try:
+        # Parse timestamp
+        if isinstance(timestamp, str):
+            # Handle various timestamp formats
+            if '+' in timestamp or 'Z' in timestamp:
+                dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+            else:
+                dt = datetime.fromisoformat(timestamp)
         else:
-            start_candidate = end_candidate = None
+            return False
+        
+        hour = dt.hour
+        
+        # Business hours: 08:00 ~ 19:00 (8 <= hour < 19)
+        if 8 <= hour < 19:
+            return False  # Normal business hours
+        else:
+            return True   # Unusual time (outside business hours)
+            
+    except (ValueError, AttributeError, TypeError) as e:
+        print(f"Failed to parse timestamp '{timestamp}': {e}")
+        return False  # Default to False if parsing fails
+
+
+def is_new_location(region: str) -> bool:
+
+    if not region:
+        return False  # Region 정보가 없으면 False
+    
+    # Expected region
+    expected_region = "ap-northeast-2"
+    
+    if region.lower() == expected_region.lower():
+        return False  # Expected region
     else:
-        start_candidate = end_candidate = None
+        return True   # New/unusual location
 
-    if start_candidate is None or end_candidate is None or end_candidate <= start_candidate:
-        return start_hour, end_hour
-    return start_candidate, end_candidate
-
-
-def _is_unusual_time(event_time_value, state):
-    event_dt = _parse_iso_datetime(event_time_value)
-    if not event_dt:
-        return False
-
-    start_hour, end_hour = _resolve_business_hours(state.get("business_hours"))
-
-    if event_dt.weekday() >= 5:  # Weekend activity
-        return True
-
-    hour = event_dt.hour
-    return hour < start_hour or hour >= end_hour
-
-
-def _normalize_ip(ip_value):
-    if not ip_value:
-        return None
-
-    ip_str = str(ip_value).strip()
-    if not ip_str:
-        return None
-
-    if ip_str.startswith("[") and "]" in ip_str:
-        ip_str = ip_str[1:ip_str.index("]")]
-    if "%" in ip_str:
-        ip_str = ip_str.split("%", 1)[0]
-    if ip_str.count(":") == 1 and "." in ip_str:
-        host, port = ip_str.split(":", 1)
-        if port.isdigit():
-            ip_str = host
-    return ip_str or None
-
-
-def _is_private_ip(ip_str):
-    try:
-        ip_obj = ip_address(ip_str)
-    except ValueError:
-        return False
-    return any(ip_obj in network for network in PRIVATE_NETWORKS)
-
-
-def _flatten_known_items(*items):
-    flattened = []
-    for item in items:
-        if not item:
-            continue
-        if isinstance(item, (list, tuple, set)):
-            flattened.extend(_flatten_known_items(*item))
-        elif isinstance(item, dict):
-            flattened.extend(_flatten_known_items(*item.values()))
-        else:
-            for token in re.split(r"[,\s]+", str(item)):
-                token = token.strip()
-                if token:
-                    flattened.append(token)
-    return flattened
-
-
-def _extract_ipv4_prefix(ip_str):
-    try:
-        ip_obj = ip_address(ip_str)
-    except ValueError:
-        return None
-    if ip_obj.version == 4:
-        parts = ip_str.split(".")
-        if len(parts) >= 2:
-            return ".".join(parts[:2])
-    return None
-
-
-def _is_new_location(event, state):
-    source_ip = _normalize_ip(
-        event.get("source_ip")
-        or event.get("sourceIPAddress")
-        or event.get("source_ip_address")
-    )
-    aws_region = (event.get("aws_region") or event.get("awsRegion") or "").strip()
-
-    behavior_baseline = state.get("behavior_baseline")
-
-    known_ip_context = [
-        state.get("known_source_ips"),
-        state.get("known_ips"),
-        state.get("known_ip_addresses"),
-    ]
-
-    if isinstance(behavior_baseline, dict):
-        known_ip_context.append(behavior_baseline.get("known_source_ips"))
-
-    known_ip_context.extend(
-        [
-            event.get("known_source_ips"),
-            event.get("recent_source_ips"),
-            event.get("previous_source_ips"),
-            event.get("historical_source_ips"),
-            event.get("ip_history"),
-        ]
-    )
-
-    known_ips = {
-        ip_item
-        for ip_item in (
-            _normalize_ip(token) for token in _flatten_known_items(*known_ip_context)
-        )
-        if ip_item
-    }
-
-    if source_ip:
-        if source_ip in known_ips:
-            return False
-
-        source_prefix = _extract_ipv4_prefix(source_ip)
-        known_prefixes = {
-            prefix for prefix in (_extract_ipv4_prefix(ip_item) for ip_item in known_ips) if prefix
-        }
-
-        if known_prefixes and source_prefix in known_prefixes:
-            return False
-
-        if known_ips:
-            return True
-
-        return not _is_private_ip(source_ip)
-
-    known_region_context = [
-        state.get("known_regions"),
-        state.get("preferred_regions"),
-        state.get("allowed_regions"),
-    ]
-
-    if isinstance(behavior_baseline, dict):
-        known_region_context.extend(
-            [
-                behavior_baseline.get("regions"),
-                behavior_baseline.get("known_regions"),
-                behavior_baseline.get("allowed_regions"),
-            ]
-        )
-
-    known_region_context.extend(
-        [
-            event.get("known_regions"),
-            event.get("recent_regions"),
-            event.get("historical_regions"),
-        ]
-    )
-
-    known_regions = {
-        token.lower()
-        for token in _flatten_known_items(*known_region_context)
-        if isinstance(token, str) and token.strip()
-    }
-
-    if aws_region:
-        aws_region_lower = aws_region.lower()
-        if aws_region_lower in known_regions:
-            return False
-        if known_regions:
-            return True
-
-        home_region = state.get("home_region") or state.get("primary_region")
-        if isinstance(home_region, str) and home_region.strip():
-            return aws_region_lower != home_region.lower()
-
-    return False
-
-def agent(event: dict, state: dict):
+def agent(event: dict, state: dict, group_id: str):
     analyze_agent = Analyze_agent()
     analyze_result = analyze_agent.invoke({"event": event, "retrive_cnt": 5})
 
@@ -316,11 +118,22 @@ def agent(event: dict, state: dict):
                                     break
                 
                 if not json_str or '"severity"' not in json_str:
-                    print("Could not find valid JSON with 'severity' field in supervisor's response.")
-                    print("Content:", content[:500])  # Print first 500 chars for debugging
                     return None
                 
                 report = json.loads(json_str)
+
+                # Parse user_identity to extract ARN
+                user_arn = "N/A"
+                user_identity_str = event.get("user_identity", "")
+                if user_identity_str:
+                    try:
+                        if isinstance(user_identity_str, str):
+                            user_identity_dict = json.loads(user_identity_str)
+                        else:
+                            user_identity_dict = user_identity_str
+                        user_arn = user_identity_dict.get("arn", "N/A")
+                    except (json.JSONDecodeError, AttributeError, TypeError):
+                        user_arn = "N/A"
 
                 # Build detailed report_data dict
                 report_data = {
@@ -330,7 +143,7 @@ def agent(event: dict, state: dict):
                     "timestamp": event.get("event_time", "N/A"),
                     "source": event.get("event_source", "N/A"),
                     "event_name": event.get("event_name", "N/A"),
-                    "user_arn": event.get("user_identity", "N/A"),
+                    "user_arn": user_arn,
                     "source_ip": event.get("source_ip", "N/A"),
                     "user_agent": event.get("user_agent", "N/A"),
                     "session_id": event.get("session_credential_from_console", "N/A"),
@@ -348,12 +161,91 @@ def agent(event: dict, state: dict):
                     "Mitre Mapping": report.get("mitre_mapping", "N/A"),
                     
                     "behavior": {
-                        "unusual_time": _is_unusual_time(event.get("event_time"), state),
-                        "new_location": _is_new_location(event, state),
+                        "unusual_time": is_unusual_time(event.get("event_time", "")),
+                        "new_location": is_new_location(event.get("aws_region", "")),
                     },
                 }
 
-                generate_full_pdf("accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf", report_data)
+                report_link = generate_full_pdf(group_id, report_data)
+
+                # DB에 저장
+                db = SessionLocal()
+                try:
+                    # Severity를 enum으로 변환
+                    severity_str = report_data.get("severity", "low").lower()
+                    severity_map = {
+                        "low": SeverityLevel.low,
+                        "medium": SeverityLevel.medium,
+                        "high": SeverityLevel.high
+                    }
+                    severity_enum = severity_map.get(severity_str, SeverityLevel.low)
+                    
+                    # 1. AgentResult 레코드 생성
+                    agent_result = AgentResult(
+                        id=event.get("id"),
+                        severity=severity_enum,
+                        timeline=report_data.get("Timeline", ""),
+                        mitre_mapping=report_data.get("Mitre Mapping", ""),
+                        report=report_link
+                    )
+                    
+                    # AgentResult 저장 (upsert)
+                    existing_result = db.query(AgentResult).filter(AgentResult.id == event.get("id")).first()
+                    if existing_result:
+                        # Update existing record
+                        existing_result.severity = severity_enum
+                        existing_result.timeline = report_data.get("Timeline", "")
+                        existing_result.mitre_mapping = report_data.get("Mitre Mapping", "")
+                        existing_result.report = report_link
+                    else:
+                        # Insert new record
+                        db.add(agent_result)
+                    
+                    # 2. AgentTotal 레코드 생성
+                    def serialize_for_jsonb(data):
+                        if isinstance(data, dict):
+                            result = {}
+                            for key, value in data.items():
+                                if key == "messages":
+                                    serialized_msgs = []
+                                    for msg in value:
+                                        if hasattr(msg, 'dict'):
+                                            serialized_msgs.append(msg.dict())
+                                        elif isinstance(msg, dict):
+                                            serialized_msgs.append(msg)
+                                        else:
+                                            serialized_msgs.append({"content": str(msg)})
+                                    result[key] = serialized_msgs
+                                else:
+                                    result[key] = value
+                            return result
+                        return data
+                    
+                    content_data = serialize_for_jsonb(supervisor_result)
+                    
+                    agent_total = AgentTotal(
+                        id=event.get("id"),
+                        content=content_data
+                    )
+                    
+                    # AgentTotal 저장 (upsert)
+                    existing_total = db.query(AgentTotal).filter(AgentTotal.id == event.get("id")).first()
+                    if existing_total:
+                        # Update existing record
+                        existing_total.content = content_data
+                    else:
+                        # Insert new record
+                        db.add(agent_total)
+                    
+                    db.commit()
+                    print(f"✅ AgentResult and AgentTotal saved to DB for event_id: {event.get('id')}")
+                    
+                except Exception as e:
+                    db.rollback()
+                    print(f"❌ Failed to save to DB: {e}")
+                finally:
+                    db.close()
+
                 return None
                     
             except json.JSONDecodeError as e:

@@ -1,4 +1,5 @@
-import json
+import io
+import boto3
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -9,14 +10,16 @@ from reportlab.platypus import (
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.cidfonts import UnicodeCIDFont
 from reportlab.lib.units import cm
-import boto3
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+S3_BUCKET_NAME = os.getenv("S3_BUCKET_NAME")
 
 # ------------------------
 # Cover Page
 # ------------------------
-def draw_sdg_cover(canvas, doc, event_id="E000", attack_name="UnknownAttack"):
+def draw_sdg_cover(canvas, doc, attack_name="UnknownAttack"):
     width, height = A4
     color_blocks = [
         colors.HexColor("#7BC96F"),
@@ -45,7 +48,7 @@ def draw_sdg_cover(canvas, doc, event_id="E000", attack_name="UnknownAttack"):
 
     canvas.setFont("Helvetica-Bold", 22)
     canvas.setFillColor(accent_text)
-    canvas.drawString(text_start_x, top_y, f"{event_id}  {attack_name}")
+    canvas.drawString(text_start_x, top_y, f"{attack_name}")
 
     canvas.setFillColor(text_black)
     canvas.setFont("Helvetica-Bold", 48)
@@ -82,7 +85,7 @@ def draw_table_of_contents(canvas, doc):
         "Behavior Analysis",
         "Timeline",
         "Mitre Mapping",
-        "Recommendations",
+        "Recommendations Summary",
     ]
 
     y_start = height - 10 * cm
@@ -99,7 +102,7 @@ def draw_table_of_contents(canvas, doc):
 
 
 # ------------------------
-# Confidential Header & Footer
+# Header/Footer
 # ------------------------
 def draw_confidential(canvas, doc):
     canvas.saveState()
@@ -120,7 +123,7 @@ def draw_footer(canvas, doc):
 
 
 # ------------------------
-# Main Content
+# Main Content Builder
 # ------------------------
 def build_security_report_elements(event_data: dict):
     pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
@@ -140,9 +143,11 @@ def build_security_report_elements(event_data: dict):
     source = event_data.get("source", "N/A")
     event_name = event_data.get("event_name", "N/A")
     user_arn = event_data.get("user_arn", "N/A")
-    source_ip = event_data.get("source_ip", "N/A")
-    user_agent = event_data.get("user_agent", "N/A")
-    session_id = event_data.get("session_id", "N/A")
+
+    entities = event_data.get("entities", {})
+    source_ip = entities.get("source_ip", event_data.get("source_ip", "N/A")) or "N/A"
+    user_agent = entities.get("user_agent", event_data.get("user_agent", "N/A")) or "N/A"
+    session_id = entities.get("session_id", event_data.get("session_id", "N/A")) or "N/A"
     region = event_data.get("Region", "N/A")
     geolocation = event_data.get("geolocation", "N/A")
 
@@ -150,7 +155,6 @@ def build_security_report_elements(event_data: dict):
     behavior = event_data.get("behavior", {})
     timeline = event_data.get("Timeline", "N/A")
     mitre_mapping = event_data.get("Mitre Mapping", "N/A")
-
     severity = event_data.get("severity", "N/A").capitalize()
     accuracy = event_data.get("accuracy", 0)
 
@@ -166,18 +170,14 @@ def build_security_report_elements(event_data: dict):
         f"(<b>{accuracy}%</b> accuracy)"
     )
 
-    summary_style = ParagraphStyle(
-        "SummaryTitle",
-        fontName="Helvetica-Bold",
-        fontSize=18,
-        leading=22,
-        alignment=1,
-        textColor=colors.black
-    )
+    summary_style = ParagraphStyle("SummaryTitle", fontName="Helvetica-Bold", fontSize=18, alignment=1)
 
     elements = [PageBreak(), Paragraph(summary_text, summary_style), Spacer(1, 35)]
 
-    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=15, leading=18)
+    title_style = ParagraphStyle("Title", fontName="Helvetica-Bold", fontSize=15)
+    rec_style = ParagraphStyle("RecStyle", fontName="HYSMyeongJo-Medium", fontSize=11, leading=16)
+
+    # -------- Section: Basic Info / FP Info / Behavior --------
     sections = [
         ("Basic Information", [
             ["Event ID", event_id],
@@ -215,46 +215,90 @@ def build_security_report_elements(event_data: dict):
             ("GRID", (0, 0), (-1, -1), 0.3, colors.gray),
             ("TOPPADDING", (0, 0), (-1, -1), 8),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-            ("VALIGN", (0, 0), (-1, -1), "TOP")
         ]))
         elements.append(table)
         elements.append(Spacer(1, 35))
+
+    # -------- Section: Timeline --------
+    elements.append(Paragraph("Timeline", title_style))
+    elements.append(Spacer(1, 10))
+    timeline_box = Table([[Paragraph(str(timeline), rec_style)]], colWidths=[16.2 * cm])
+    timeline_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
+        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
+        ("LEFTPADDING", (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+    ]))
+    elements.append(timeline_box)
+    elements.append(Spacer(1, 35))
+
+    # -------- Section: MITRE Mapping --------
+    elements.append(Paragraph("Mitre Mapping", title_style))
+    elements.append(Spacer(1, 10))
+    mitre_box = Table([[Paragraph(str(mitre_mapping), rec_style)]], colWidths=[16.2 * cm])
+    mitre_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
+        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
+    ]))
+    elements.append(mitre_box)
+    elements.append(Spacer(1, 35))
+
+    # -------- Section: Recommendations Summary --------
+    rec_title_style = ParagraphStyle("RecTitle", fontName="Helvetica-Bold", fontSize=15)
+    rec_text = (
+        f"Based on the analysis, this <b>{event_name}</b> event with severity "
+        f"<font color='{severity_color}'><b>{severity}</b></font> shows potential security impact.<br/><br/>"
+        f"<b>Recommendations:</b><br/>"
+        f"1. Verify if this behavior is expected or automated.<br/>"
+        f"2. Rotate the access key for related users and enforce MFA.<br/>"
+        f"3. Review network and IAM activity logs for correlated actions."
+    )
+
+    elements.append(Paragraph("Recommendations Summary", rec_title_style))
+    elements.append(Spacer(1, 8))
+    summary_box = Table([[Paragraph(rec_text, rec_style)]], colWidths=[16.2 * cm])
+    summary_box.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), gray_box),
+        ("BOX", (0, 0), (-1, -1), 0.3, colors.gray),
+    ]))
+    elements.append(summary_box)
+    elements.append(Spacer(1, 20))
 
     return elements
 
 
 # ------------------------
-# Generate PDF + Upload S3 (백엔드에서 event_data 전달받는 구조)
+# Generate PDF + Upload to S3 (No Local Save)
 # ------------------------
 def generate_full_pdf(company_name: str, event_data: dict):
     event_id = event_data.get("event_id", "E000")
     attack_name = event_data.get("event_name", "UnknownEvent")
 
-    output_file = f"{event_id}_Security Event Report.pdf"
-    doc = SimpleDocTemplate(output_file, pagesize=A4)
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
     elements = build_security_report_elements(event_data)
 
     def first_page(canvas, doc):
-        draw_sdg_cover(canvas, doc, event_id, attack_name)
+        draw_sdg_cover(canvas, doc, attack_name)
         canvas.showPage()
         draw_table_of_contents(canvas, doc)
 
-    doc.build(
-        elements,
-        onFirstPage=first_page,
-        onLaterPages=lambda c, d: (draw_confidential(c, d), draw_footer(c, d))
+    doc.build(elements, onFirstPage=first_page,
+              onLaterPages=lambda c, d: (draw_confidential(c, d), draw_footer(c, d)))
+
+    buffer.seek(0)
+
+    s3 = boto3.client("s3")
+    bucket_name = S3_BUCKET_NAME
+    date_prefix = datetime.now().strftime("%Y-%m")
+    s3_key = f"{company_name}/{date_prefix}/{event_id}.pdf"
+
+    s3.upload_fileobj(buffer, bucket_name, s3_key, ExtraArgs={"ContentType": "application/pdf"})
+
+    url = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket_name, "Key": s3_key},
+        ExpiresIn=3600
     )
 
-    print(f"✅ PDF successfully generated: {output_file}")
-
-    try:
-        s3 = boto3.client("s3")
-        bucket_name = "inu-security-reports-2025"
-        date_prefix = datetime.now().strftime("%Y-%m")
-        folder_path = f"{company_name}/{date_prefix}/"
-        s3_key = folder_path + os.path.basename(output_file)
-
-        s3.upload_file(output_file, bucket_name, s3_key)
-        print(f"✅ Uploaded to S3: s3://{bucket_name}/{s3_key}")
-    except Exception as e:
-        print(f"❌ S3 upload failed: {e}")
+    return url
