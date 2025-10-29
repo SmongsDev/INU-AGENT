@@ -175,7 +175,7 @@ class AgentTotal(Base):
     __tablename__ = "agent_total"
 
     id = Column(PgUUID(as_uuid=True), ForeignKey("events.id"), primary_key=True)
-    content = Column(Text)
+    content = Column(JSONB)
 
     # Relationships
     event = relationship("Event", back_populates="agent_total")
