@@ -52,7 +52,7 @@ def agent(event: dict, state: dict, group_id: str):
 
     is_false_positive = analyze_result.get("is_false_positive")
 
-    if is_false_positive:
+    if not is_false_positive:
         return None
     
     else:
@@ -159,6 +159,8 @@ def agent(event: dict, state: dict, group_id: str):
                     
                     "Timeline": report.get("timeline", "N/A"),
                     "Mitre Mapping": report.get("mitre_mapping", "N/A"),
+                    "Reason": report.get("reason", "N/A"),
+                    "Threat Response": report.get("threat_response", "N/A"),
                     
                     "behavior": {
                         "unusual_time": is_unusual_time(event.get("event_time", "")),
@@ -254,3 +256,46 @@ def agent(event: dict, state: dict, group_id: str):
                 return None
         
         return None
+
+
+if __name__ == "__main__":
+
+    event =   {
+    "id": "a3aa0bc6-63aa-439b-ae8c-e664aed2b0a1",
+    "event_id": "fa44955e-4ede-3893-ba6a-6bd824163e67",
+    "event_version": "1.11",
+    "event_time": "2025-10-02 12:39:30+00",
+    "event_source": "s3.amazonaws.com",
+    "event_name": "GetBucketTagging",
+    "event_category": "Management",
+    "event_type": "AwsApiCall",
+    "aws_region": "ap-northeast-2",
+    "read_only": True,
+    "request_id": "ZDSCGSJFQRAFDJPQ",
+    "source_ip": None,
+    "user_agent": "config.amazonaws.com",
+    "management_event": True,
+    "recipient_account_id": "093342385579",
+    "session_credential_from_console": None,
+    "shared_event_id": None,
+    "error_code": None,
+    "error_message": None,
+    "user_identity": "{\"arn\": \"arn:aws:sts::093342385579:assumed-role/AWSServiceRoleForConfig/AWSConfig-Describe\", \"type\": \"AssumedRole\", \"userName\": None, \"accountId\": \"093342385579\", \"accessKeyId\": \"ASIARLO5DYWV2YVKDE2P\", \"principalId\": \"AROARLO5DYWVSPDR2YBTN:AWSConfig-Describe\"}",
+    "tls_details": None,
+    "request_parameters": "{\"Host\": \"stratus-red-team-dns-delete-bucket-cbizhmnopz.s3.ap-northeast-2.amazonaws.com\", \"tagging\": \"\", \"bucketName\": \"stratus-red-team-dns-delete-bucket-cbizhmnopz\"}",
+    "response_elements": "None",
+    "insight_details": None,
+    "resources": None
+  }
+    state = {
+
+        "sup_model": "gpt-4.1",
+        "sql_model": "gpt-4.1",
+        "rag_model": "gpt-4.1",
+        "retrive_cnt": 5,
+        "report_option": {
+            "timeline": True,
+            "mapping": True,
+        },
+    }
+    agent(event, state, group_id="accbe9c0-7ae8-4aa3-a0c7-9992e009f8cf")

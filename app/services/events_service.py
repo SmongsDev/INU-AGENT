@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.schemas.events import Event
 from app.schemas.base import SourceProduct
 from app.db.session import get_db
-from app.db.models import Event as EventModel, CloudTrail as CloudTrailModel, CloudWatch as CloudWatchModel
+from app.db.models import Event as EventModel, CloudTrail as CloudTrailModel
 from app.services.metadata_service import MetadataService
 
 class EventService:
@@ -35,8 +35,7 @@ class EventService:
                 
                 # source_product별 테이블 매핑
                 source_models = {
-                    SourceProduct.cloudtrail: CloudTrailModel,
-                    SourceProduct.cloudwatch: CloudWatchModel,
+                    SourceProduct.cloudtrail: CloudTrailModel
                     # 추후 SourceProduct.guardduty: GuardDutyModel 추가 가능
                 }
                 
@@ -110,17 +109,6 @@ class EventService:
                     'user_identity_arn': getattr(source_record, 'user_identity_arn', ''),
                     'request_parameters': getattr(source_record, 'request_parameters', None),
                     'response_elements': getattr(source_record, 'response_elements', None),
-                })
-                
-            elif source_product == SourceProduct.cloudwatch:
-                # CloudWatch 특화 필드 매핑
-                base_dict.update({
-                    'event_name': getattr(source_record, 'event_name', ''),
-                    'event_source': 'cloudwatch',
-                    'source_ip': str(source_record.source_ip) if getattr(source_record, 'source_ip', None) else '',
-                    'user_agent': getattr(source_record, 'user_agent', ''),
-                    'event_time': source_record.event_time.isoformat() if source_record.event_time else base_dict['created_at'],
-                    # CloudWatch 특화 필드들 추가 가능
                 })
             
             return base_dict

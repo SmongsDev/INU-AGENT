@@ -1,10 +1,10 @@
 import os
 import sys
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional
 from datetime import datetime
 from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import QueuePool
 from dotenv import load_dotenv
 import logging
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.db.models import Event, CloudTrail, CloudWatch, Base
+from app.db.models import Event, CloudTrail
 
 
 class DatabaseDataLoader:
     """
-    RDS 데이터베이스에서 CloudTrail/CloudWatch 로그 데이터를 로드하는 클래스
+    RDS 데이터베이스에서 CloudTrail 로그 데이터를 로드하는 클래스
     """
     
     def __init__(self, database_url: Optional[str] = None):
@@ -127,68 +127,6 @@ class DatabaseDataLoader:
                 logger.error(f"CloudTrail 이벤트 로드 중 오류: {e}")
                 return []
     
-    def load_cloudwatch_events(self, 
-                              group_id: Optional[str] = None,
-                              limit: Optional[int] = None,
-                              start_time: Optional[datetime] = None,
-                              end_time: Optional[datetime] = None,
-                              unprocessed_only: bool = False) -> List[Dict]:
-        """
-        CloudWatch 이벤트를 데이터베이스에서 로드합니다.
-        
-        Args:
-            group_id: 특정 그룹의 데이터만 로드 (None이면 모든 그룹)
-            limit: 최대 로드할 이벤트 수
-            start_time: 시작 시간 필터
-            end_time: 종료 시간 필터
-            unprocessed_only: ML 분석이 안된 이벤트만 로드할지 여부
-            
-        Returns:
-            CloudWatch 로그 이벤트 리스트 (ML 모델이 기대하는 형식)
-        """
-        with self.get_db_session() as session:
-            try:
-                # 기본 쿼리 구성
-                query = session.query(Event, CloudWatch).join(CloudWatch, Event.id == CloudWatch.id)
-                
-                # 필터 적용
-                if group_id:
-                    query = query.filter(Event.group_id == group_id)
-                
-                if start_time:
-                    query = query.filter(Event.created_at >= start_time)
-                    
-                if end_time:
-                    query = query.filter(Event.created_at <= end_time)
-                
-                if unprocessed_only:
-                    # ML 분석이 안된 이벤트만
-                    from app.db.models import MLLog
-                    processed_event_ids = session.query(MLLog.id).subquery()
-                    query = query.filter(~Event.id.in_(processed_event_ids))
-                
-                # 제한 및 정렬 적용
-                query = query.order_by(Event.created_at.desc())
-                if limit:
-                    query = query.limit(limit)
-                
-                results = query.all()
-                
-                logger.info(f"데이터베이스에서 {len(results)}개의 CloudWatch 이벤트를 로드했습니다.")
-                
-                # ML 모델 형식으로 변환
-                formatted_events = []
-                for event, cloudwatch in results:
-                    formatted_event = self._format_cloudwatch_event(event, cloudwatch)
-                    if formatted_event:
-                        formatted_events.append(formatted_event)
-                
-                return formatted_events
-                
-            except Exception as e:
-                logger.error(f"CloudWatch 이벤트 로드 중 오류: {e}")
-                return []
-    
     def _format_cloudtrail_event(self, event: Event, cloudtrail: CloudTrail) -> Dict:
         """
         데이터베이스의 CloudTrail 이벤트를 ML 모델이 기대하는 형식으로 변환합니다.
@@ -241,53 +179,6 @@ class DatabaseDataLoader:
             logger.error(f"CloudTrail 이벤트 포맷팅 오류: {e}")
             return None
     
-    def _format_cloudwatch_event(self, event: Event, cloudwatch: CloudWatch) -> Dict:
-        """
-        데이터베이스의 CloudWatch 이벤트를 ML 모델이 기대하는 형식으로 변환합니다.
-        """
-        try:
-            formatted_event = {
-                # 기본 필드 (camelCase + snake_case 호환)
-                'eventVersion': cloudwatch.event_version,
-                'event_version': cloudwatch.event_version,
-                'eventTime': cloudwatch.event_time.isoformat() if cloudwatch.event_time else event.created_at.isoformat(),
-                'event_time': cloudwatch.event_time.isoformat() if cloudwatch.event_time else event.created_at.isoformat(),
-                'eventSource': cloudwatch.event_source,
-                'event_source': cloudwatch.event_source,
-                'eventName': cloudwatch.event_name,
-                'event_name': cloudwatch.event_name,
-                'awsRegion': cloudwatch.aws_region,
-                'aws_region': cloudwatch.aws_region,
-                'sourceIPAddress': str(cloudwatch.source_ip_address) if cloudwatch.source_ip_address else str(event.source_ip),
-                'source_ip': str(cloudwatch.source_ip_address) if cloudwatch.source_ip_address else str(event.source_ip),
-                'userAgent': cloudwatch.user_agent or event.user_agent,
-                'user_agent': cloudwatch.user_agent or event.user_agent,
-
-                # JSON 필드들 (camelCase + snake_case 호환)
-                'userIdentity': cloudwatch.userIdentity or {},
-                'user_identity': cloudwatch.userIdentity or {},
-                'requestParameters': cloudwatch.request_parameters or {},
-                'request_parameters': cloudwatch.request_parameters or {},
-                'responseElements': cloudwatch.response_elements or {},
-                'response_elements': cloudwatch.response_elements or {},
-
-                # CloudWatch는 일부 필드 기본값 설정
-                'readOnly': False,
-                'read_only': False,
-                'managementEvent': True,
-                'management_event': True,
-
-                # 추가 메타데이터
-                'id': str(event.id),  # ML 결과 저장시 사용
-                '_group_id': str(event.group_id)
-            }
-
-            return formatted_event
-
-        except Exception as e:
-            logger.error(f"CloudWatch 이벤트 포맷팅 오류: {e}")
-            return None
-    
     def get_event_statistics(self, group_id: Optional[str] = None) -> Dict:
         """
         이벤트 통계를 반환합니다.
@@ -303,17 +194,14 @@ class DatabaseDataLoader:
                 # 기본 쿼리
                 event_query = session.query(Event)
                 cloudtrail_query = session.query(Event).join(CloudTrail, Event.id == CloudTrail.id)
-                cloudwatch_query = session.query(Event).join(CloudWatch, Event.id == CloudWatch.id)
                 
                 if group_id:
                     event_query = event_query.filter(Event.group_id == group_id)
                     cloudtrail_query = cloudtrail_query.filter(Event.group_id == group_id)
-                    cloudwatch_query = cloudwatch_query.filter(Event.group_id == group_id)
                 
                 # 통계 수집
                 total_events = event_query.count()
                 cloudtrail_count = cloudtrail_query.count()
-                cloudwatch_count = cloudwatch_query.count()
                 
                 # ML 처리된 이벤트 수
                 from app.db.models import MLLog
@@ -335,7 +223,6 @@ class DatabaseDataLoader:
                 return {
                     'total_events': total_events,
                     'cloudtrail_events': cloudtrail_count,
-                    'cloudwatch_events': cloudwatch_count,
                     'ml_processed_events': processed_count,
                     'unprocessed_events': total_events - processed_count,
                     'time_range': time_range,

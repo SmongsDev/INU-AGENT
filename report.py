@@ -298,7 +298,7 @@ def generate_full_pdf(company_name: str, event_data: dict):
     url = s3.generate_presigned_url(
         "get_object",
         Params={"Bucket": bucket_name, "Key": s3_key},
-        ExpiresIn=3600
+        ExpiresIn=604800  # 7일 (최대값, 약 1주일)
     )
 
     return url
