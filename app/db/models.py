@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, ForeignKey,
-    Boolean, Enum, TIMESTAMP, Float, Text
+    Boolean, Enum, TIMESTAMP, Float, Text, Date
 )
 from sqlalchemy.dialects.postgresql import UUID as PgUUID, INET, JSONB
 from pgvector.sqlalchemy import Vector
@@ -217,37 +217,19 @@ class Dashboard(Base):
     # Relationships
     group = relationship("Group")
 
-# view
-class VwEventsEnriched(Base):
-    __tablename__  = "vw_events_enriched"
-    __table_args__ = {"info": {"is_view": True}}
-
-    id             = Column(PgUUID(as_uuid=True), primary_key=True)
-    group_id       = Column(PgUUID(as_uuid=True), nullable=False)
-    source_product = Column(Enum(SourceProduct), nullable=False)
-    source_ip      = Column(INET)
-    user_agent     = Column(String)
-    created_at     = Column(TIMESTAMP(timezone=True), nullable=False)
-    severity       = Column(Integer)
-    confidence     = Column(Float)
-    result         = Column(JSONB)
-    alert_key      = Column(String)
-
-class VwAlertsSummary(Base):
-    __tablename__ = "vw_alerts_summary"
+class VwAlertsDailySummary(Base):
+    __tablename__ = "mv_group_severity_daily"
     __table_args__ = {"info": {"is_view": True}}
 
     group_id = Column(PgUUID(as_uuid=True), primary_key=True)
+    day = Column(Date, primary_key=True)
     high = Column(Integer, nullable=False)
     medium = Column(Integer, nullable=False)
     low = Column(Integer, nullable=False)
 
-class VwAlertsTop(Base):
-    __tablename__ = "vw_alerts_top"
+class VwFalsePositiveTop(Base):
+    __tablename__ = "mv_fpl_cloudtrail_top10_24h"
     __table_args__ = {"info": {"is_view": True}}
 
-    group_id = Column(PgUUID(as_uuid=True), primary_key=True)
     event_name = Column(String, primary_key=True)
-    count = Column(Integer, nullable=False)
-
-
+    cnt = Column(Integer, nullable=False)
