@@ -149,7 +149,8 @@ class AgentResult(Base):
     timeline = Column(Text)
     mitre_mapping = Column(Text)
     report = Column(Text)
-
+    reason = Column(Text)
+    response = Column(Text)
     # Relationships
     event = relationship("Event", back_populates="agent_results")
 
