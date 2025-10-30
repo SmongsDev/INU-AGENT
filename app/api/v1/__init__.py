@@ -7,6 +7,7 @@ from . import routes_aas
 from . import routes_threats
 from . import routes_alert
 from . import routes_automation
+from . import routes_chat
 
 router = APIRouter()
 
@@ -18,3 +19,4 @@ router.include_router(routes_aas.router, tags=["AAS"])
 router.include_router(routes_threats.router, tags=["Threats"])
 router.include_router(routes_alert.router, tags=["Alerts"])
 router.include_router(routes_automation.router, tags=["Automation"])
+router.include_router(routes_chat.router, tags=["Chat"])

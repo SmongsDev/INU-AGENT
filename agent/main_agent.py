@@ -6,7 +6,8 @@ from agent.Analyze_agent.Analyze import Analyze_agent
 from agent.Supervisor_agent.supervisor_agent import Supervisor_agent
 from report import generate_full_pdf
 from app.db.session import SessionLocal
-from app.db.models import AgentResult, AgentTotal, SeverityLevel
+from app.db.models import AgentResult, AgentTotal, SeverityLevel, Settings
+from app.services.notification_service import NotificationService
 
 def is_unusual_time(timestamp: str) -> bool:
     try:
@@ -245,7 +246,43 @@ def agent(event: dict, state: dict, group_id: str):
                     
                     db.commit()
                     print(f"✅ AgentResult and AgentTotal saved to DB for event_id: {event.get('id')}")
-                    
+
+                    # 알림 전송 (최적화: group_id 파라미터 활용 및 불필요한 쿼리 제거)
+                    try:
+                        # 그룹의 알림 설정 가져오기
+                        settings = db.query(Settings).filter(Settings.group_id == group_id).first()
+
+                        # 알림이 활성화되어 있고, webhook URL이 설정되어 있으면 알림 전송
+                        if settings and settings.notif_enabled and (settings.discord_webhook_url or settings.slack_webhook_url):
+                            # event 객체에서 직접 event_time 파싱
+                            event_time_str = event.get("event_time")
+                            if event_time_str:
+                                try:
+                                    if isinstance(event_time_str, str):
+                                        if '+' in event_time_str or 'Z' in event_time_str:
+                                            event_time = datetime.fromisoformat(event_time_str.replace('Z', '+00:00'))
+                                        else:
+                                            event_time = datetime.fromisoformat(event_time_str)
+                                    else:
+                                        event_time = event_time_str
+                                except (ValueError, AttributeError):
+                                    event_time = datetime.now()
+                            else:
+                                event_time = datetime.now()
+
+                            NotificationService.send_notification(
+                                discord_webhook_url=settings.discord_webhook_url,
+                                slack_webhook_url=settings.slack_webhook_url,
+                                event_time=event_time,
+                                is_false_positive=analyze_result.get("is_false_positive", False),
+                                reason=report_data.get("Reason", ""),
+                                response=report_data.get("Threat Response", ""),
+                                severity=severity_str
+                            )
+                            print(f"✅ 알림 전송 완료")
+                    except Exception as notif_error:
+                        print(f"⚠️ 알림 전송 실패 (계속 진행): {notif_error}")
+
                 except Exception as e:
                     db.rollback()
                     print(f"❌ Failed to save to DB: {e}")
