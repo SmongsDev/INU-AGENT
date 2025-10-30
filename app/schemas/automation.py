@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 from uuid import UUID
 from pydantic import BaseModel, Field, IPvAnyAddress
 from app.schemas.base import SeverityLevel
@@ -22,6 +22,9 @@ class AutomationResponse(BaseModel):
     severity: Optional[str] = Field(None, description="위협 심각도 (agent_results severity)")
     mitre_mapping: Optional[str] = Field(None, description="MITRE ATT&CK 매핑 (agent_results mitre_mapping)")
     report: Optional[str] = Field(None, description="분석 보고서 (agent_results report)")
+
+    # Agent Total 정보
+    detail: Optional[Dict[str, Any]] = Field(None, description="에이전트 상세 정보 (agent_total content)")
 
     class Config:
         from_attributes = True

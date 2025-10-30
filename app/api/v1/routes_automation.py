@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 from app.db.session import get_db
-from app.db.models import Event, CloudTrail, AgentResult
+from app.db.models import Event, CloudTrail, AgentResult, AgentTotal
 from app.core.auth import get_group_id_from_token
 from app.schemas.automation import AutomationResponse
 
@@ -45,7 +45,7 @@ def get_automation_data(
     """
 
     try:
-        # 기본 쿼리: AgentResult를 메인으로 Event, CloudTrail 조인
+        # 기본 쿼리: AgentResult를 메인으로 Event, CloudTrail, AgentTotal 조인
         query = db.query(
             AgentResult.id.label('event_id'),
             CloudTrail.event_name,
@@ -54,10 +54,13 @@ def get_automation_data(
             AgentResult.severity,
             AgentResult.mitre_mapping,
             AgentResult.report,
+            AgentTotal.content,
         ).join(
             Event, AgentResult.id == Event.id
         ).join(
             CloudTrail, AgentResult.id == CloudTrail.id
+        ).outerjoin(
+            AgentTotal, AgentResult.id == AgentTotal.id
         ).filter(
             Event.group_id == group_id
         )
@@ -86,76 +89,11 @@ def get_automation_data(
                 severity=result.severity.value if result.severity else None,
                 mitre_mapping=result.mitre_mapping,
                 report=result.report,
+                detail=result.content,
             )
             automation_data.append(automation_item)
 
         return automation_data
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"자동화 데이터 조회 중 오류 발생: {str(e)}"
-        )
-
-
-@router.get("/automation/{event_id}", response_model=AutomationResponse)
-def get_automation_data_by_id(
-    event_id: UUID,
-    group_id: UUID = Depends(get_group_id_from_token),
-    db: Session = Depends(get_db),
-):
-    """
-    특정 이벤트의 자동화 데이터 조회
-
-    Parameters:
-    - **event_id**: 조회할 이벤트 ID
-    - **group_id**: 사용자의 그룹 ID (토큰에서 자동 추출)
-
-    Returns:
-    - AutomationResponse: 단일 자동화 데이터
-
-    Authorization: Bearer {access_token}
-    """
-
-    try:
-        # 특정 이벤트 조회
-        result = db.query(
-            AgentResult.id.label('event_id'),
-            CloudTrail.event_name,
-            CloudTrail.source_ip,
-            CloudTrail.event_time,
-            AgentResult.severity,
-            AgentResult.mitre_mapping,
-            AgentResult.report,
-        ).join(
-            Event, AgentResult.id == Event.id
-        ).join(
-            CloudTrail, AgentResult.id == CloudTrail.id
-        ).filter(
-            Event.group_id == group_id,
-            AgentResult.id == event_id
-        ).first()
-
-        if not result:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Event not found: {event_id}"
-            )
-
-        # 응답 데이터 구성
-        automation_item = AutomationResponse(
-            event_id=result.event_id,
-            name=result.event_name or "Unknown Event",
-            source_ip=str(result.source_ip) if result.source_ip else None,
-            event_time=result.event_time,
-            severity=result.severity.value if result.severity else None,
-            mitre_mapping=result.mitre_mapping,
-            report=result.report,
-        )
-
-        return automation_item
 
     except HTTPException:
         raise
