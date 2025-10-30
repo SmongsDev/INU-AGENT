@@ -6,7 +6,7 @@ from datetime import datetime
 from app.db.session import get_db
 from app.db.models import Event, CloudTrail, AgentResult, AgentTotal
 from app.core.auth import get_group_id_from_token
-from app.schemas.automation import AutomationResponse
+from app.schemas.automation import AutomationResponse, AutomationReasonResponse
 
 router = APIRouter()
 
@@ -15,7 +15,6 @@ router = APIRouter()
 def get_automation_data(
     group_id: UUID = Depends(get_group_id_from_token),
     db: Session = Depends(get_db),
-    limit: Optional[int] = Query(100, description="반환할 최대 레코드 수", le=1000),
     severity: Optional[str] = Query(None, description="특정 심각도 필터 (HIGH, MEDIUM, LOW)"),
     start_time: Optional[datetime] = Query(None, description="시작 시간 필터"),
     end_time: Optional[datetime] = Query(None, description="종료 시간 필터"),
@@ -27,7 +26,6 @@ def get_automation_data(
 
     Parameters:
     - **group_id**: 사용자의 그룹 ID (토큰에서 자동 추출)
-    - **limit**: 반환할 최대 레코드 수 (기본값: 100, 최대: 1000)
     - **severity**: 심각도 필터 (HIGH, MEDIUM, LOW)
     - **start_time**: 시작 시간 필터
     - **end_time**: 종료 시간 필터
@@ -76,7 +74,7 @@ def get_automation_data(
             query = query.filter(CloudTrail.event_time <= end_time)
 
         # 최신 순으로 정렬하고 limit 적용
-        results = query.order_by(CloudTrail.event_time.desc()).limit(limit).all()
+        results = query.order_by(CloudTrail.event_time.desc()).all()
 
         # 응답 데이터 구성
         automation_data = []
@@ -101,4 +99,79 @@ def get_automation_data(
         raise HTTPException(
             status_code=500,
             detail=f"자동화 데이터 조회 중 오류 발생: {str(e)}"
+        )
+
+
+@router.get("/automation/info", response_model=List[AutomationReasonResponse])
+def get_automation_reason_response(
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db),
+    severity: Optional[str] = Query(None, description="특정 심각도 필터 (HIGH, MEDIUM, LOW)"),
+    start_time: Optional[datetime] = Query(None, description="시작 시간 필터"),
+    end_time: Optional[datetime] = Query(None, description="종료 시간 필터"),
+):
+    """
+    자동화를 위한 Reason/Response 데이터 조회 API
+
+    Agent Results의 reason과 response만 반환합니다.
+
+    Parameters:
+    - **group_id**: 사용자의 그룹 ID (토큰에서 자동 추출)
+    - **severity**: 심각도 필터 (HIGH, MEDIUM, LOW)
+    - **start_time**: 시작 시간 필터
+    - **end_time**: 종료 시간 필터
+
+    Returns:
+    - List[AutomationReasonResponse]: Reason/Response 데이터 목록
+        - reason: 위협 발생 이유
+        - response: 대응 방안
+
+    Authorization: Bearer {access_token}
+    """
+
+    try:
+        # 기본 쿼리: AgentResult에서 id, reason, response 조회
+        query = db.query(
+            AgentResult.id,
+            AgentResult.reason,
+            AgentResult.response,
+        ).join(
+            Event, AgentResult.id == Event.id
+        ).join(
+            CloudTrail, AgentResult.id == CloudTrail.id
+        ).filter(
+            Event.group_id == group_id
+        )
+
+        # 심각도 필터 적용
+        if severity:
+            query = query.filter(AgentResult.severity == severity)
+
+        # 시간 범위 필터 적용
+        if start_time:
+            query = query.filter(CloudTrail.event_time >= start_time)
+        if end_time:
+            query = query.filter(CloudTrail.event_time <= end_time)
+
+        # 최신 순으로 정렬
+        results = query.order_by(CloudTrail.event_time.desc()).all()
+
+        # 응답 데이터 구성
+        reason_response_data = []
+        for result in results:
+            item = AutomationReasonResponse(
+                id=result.id,
+                reason=result.reason,
+                response=result.response,
+            )
+            reason_response_data.append(item)
+
+        return reason_response_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Reason/Response 데이터 조회 중 오류 발생: {str(e)}"
         )
