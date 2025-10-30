@@ -130,9 +130,9 @@ def get_automation_reason_response(
     """
 
     try:
-        # 기본 쿼리: AgentResult에서 id, reason, response 조회
+        # 기본 쿼리: AgentResult에서 reason, response와 CloudTrail의 event_id 조회
         query = db.query(
-            AgentResult.id,
+            CloudTrail.event_id,
             AgentResult.reason,
             AgentResult.response,
         ).join(
@@ -160,7 +160,7 @@ def get_automation_reason_response(
         reason_response_data = []
         for result in results:
             item = AutomationReasonResponse(
-                id=result.id,
+                event_id=result.event_id,
                 reason=result.reason,
                 response=result.response,
             )
