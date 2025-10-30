@@ -33,9 +33,9 @@ class AutomationResponse(BaseModel):
 class AutomationReasonResponse(BaseModel):
     """
     자동화 Reason/Response API 응답 모델
-    Agent Results의 id, reason, response 반환
+    CloudTrail의 event_id, Agent Results의 reason, response 반환
     """
-    id: UUID = Field(description="이벤트 ID")
+    event_id: UUID = Field(description="CloudTrail 이벤트 ID")
     reason: Optional[str] = Field(None, description="위협 발생 이유 (agent_results reason)")
     response: Optional[str] = Field(None, description="대응 방안 (agent_results response)")
 
