@@ -17,6 +17,8 @@ class NotifChannel(str, Enum):
     email = "email"
     push = "push"
     sms = "sms"
+    discord = "discord"
+    slack = "slack"
 
 class SourceProduct(str, Enum):
     cloudtrail = "cloudtrail"

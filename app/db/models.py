@@ -34,6 +34,8 @@ class Settings(Base):
     notif_enabled = Column(Boolean, nullable=False, default=False)
     notif_channel = Column(Enum(NotifChannel))
     notif_freq = Column(Enum(NotifFreq), nullable=False, default=NotifFreq.realtime)
+    discord_webhook_url = Column(String, nullable=True, comment="Discord Webhook URL")
+    slack_webhook_url = Column(String, nullable=True, comment="Slack Webhook URL")
 
     # Relationships
     group = relationship("Group", back_populates="settings")

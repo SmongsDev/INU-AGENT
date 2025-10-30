@@ -13,6 +13,9 @@ passlib[bcrypt]==1.7.4
 # Environment Configuration
 python-dotenv==1.0.1
 
+# HTTP Requests (for Discord/Slack webhooks)
+requests==2.32.3
+
 # LangChain Ecosystem
 langchain-core==0.3.46
 langchain-community==0.3.20
@@ -34,5 +37,8 @@ joblib==1.5.2
 # S3
 boto3
 
-# report 
+# OpenAI
+openai==1.109.1
+
+# report
 reportlab==4.4.4
