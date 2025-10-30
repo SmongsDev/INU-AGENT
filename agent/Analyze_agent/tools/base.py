@@ -7,10 +7,21 @@ from langchain.tools.retriever import create_retriever_tool
 
 from agent.Analyze_agent.config import Config
 
-# Database setup
-engine = create_engine(Config.DATABASE_URL)
+# Database setup (커넥션 풀 최적화)
+engine = create_engine(
+    Config.DATABASE_URL,
+    pool_size=20,
+    max_overflow=30,
+    pool_recycle=3600,
+    pool_pre_ping=True,
+    echo=False
+)
 Session = sessionmaker(bind=engine)
-session = Session()
+
+# 글로벌 세션 제거 - 필요할 때마다 생성하도록 함
+def get_session():
+    """데이터베이스 세션을 반환합니다. 사용 후 반드시 close() 해야 합니다."""
+    return Session()
 
 # Vector store setup
 embeddings = OpenAIEmbeddings(api_key=Config.OPENAI_API_KEY)
