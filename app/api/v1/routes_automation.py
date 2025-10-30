@@ -45,7 +45,7 @@ def get_automation_data(
     try:
         # 기본 쿼리: AgentResult를 메인으로 Event, CloudTrail, AgentTotal 조인
         query = db.query(
-            AgentResult.id.label('event_id'),
+            CloudTrail.event_id,
             CloudTrail.event_name,
             CloudTrail.source_ip,
             CloudTrail.event_time,
