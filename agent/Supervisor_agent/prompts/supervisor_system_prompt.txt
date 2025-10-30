@@ -44,7 +44,9 @@ After both SQL Agent and RAG Agent have completed their analysis, you MUST provi
   "severity": "low|medium|high",
   "accuracy": 0.0-1.0,
   "timeline": "Detailed timeline of how the event occurred over time based on SQL Agent results",
-  "mitre_mapping": "MITRE ATT&CK tactics and techniques mapped by RAG Agent"
+  "mitre_mapping": "MITRE ATT&CK tactics and techniques mapped by RAG Agent",
+  "reason": "Detailed explanation for the severity determination and analysis conclusion",
+  "threat_response": "Recommended response actions and mitigation strategies"
 }
 ```
 
@@ -62,6 +64,17 @@ After both SQL Agent and RAG Agent have completed their analysis, you MUST provi
 
 4. **mitre_mapping**: Detailed MITRE ATT&CK mapping from RAG Agent
    - Include tactics, techniques, and their IDs (e.g., T1078)
+
+5. **reason**: Comprehensive explanation for the severity assessment
+   - Why this severity level was chosen
+   - Key factors that influenced the decision
+   - Analysis of risk indicators and patterns
+
+6. **threat_response**: Actionable response recommendations
+   - Immediate actions to take
+   - Investigation steps
+   - Mitigation and remediation strategies
+   - Preventive measures for future incidents
 
 **Required Analysis Steps:**
 1. **SQL Agent**: Query historical data for timeline and event patterns
