@@ -67,10 +67,10 @@ def get_alerts_summary(
         medium_change = this_week_medium - last_week_medium
         low_change = this_week_low - last_week_low
 
-        # 증가율 계산 (저번주가 0이면 0으로 처리)
-        high_change_rate = (high_change / last_week_high * 100) if last_week_high > 0 else 0
-        medium_change_rate = (medium_change / last_week_medium * 100) if last_week_medium > 0 else 0
-        low_change_rate = (low_change / last_week_low * 100) if last_week_low > 0 else 0
+        # 증가율 계산 (저번주가 0이지만 이번주에 있으면 100%, 둘 다 0이면 0%)
+        high_change_rate = (high_change / last_week_high * 100) if last_week_high > 0 else (100 if this_week_high > 0 else 0)
+        medium_change_rate = (medium_change / last_week_medium * 100) if last_week_medium > 0 else (100 if this_week_medium > 0 else 0)
+        low_change_rate = (low_change / last_week_low * 100) if last_week_low > 0 else (100 if this_week_low > 0 else 0)
 
         return {
             "high": this_week_high,
