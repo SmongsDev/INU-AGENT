@@ -184,14 +184,25 @@ def agent(event: dict, state: dict, group_id: str):
                     severity_enum = severity_map.get(severity_str, SeverityLevel.low)
                     
                     # 1. AgentResult 레코드 생성
+                    # dict를 JSON 문자열로 변환하는 헬퍼 함수
+                    def to_text(value):
+                        if isinstance(value, dict):
+                            return json.dumps(value, ensure_ascii=False)
+                        return str(value) if value else ""
+
+                    timeline_str = to_text(report_data.get("Timeline", ""))
+                    mitre_mapping_str = to_text(report_data.get("Mitre Mapping", ""))
+                    reason_str = to_text(report_data.get("Reason", ""))
+                    response_str = to_text(report_data.get("Threat Response", ""))
+
                     agent_result = AgentResult(
                         id=event.get("id"),
                         severity=severity_enum,
-                        timeline=report_data.get("Timeline", ""),
-                        mitre_mapping=report_data.get("Mitre Mapping", ""),
+                        timeline=timeline_str,
+                        mitre_mapping=mitre_mapping_str,
                         report=report_link,
-                        reason=report_data.get("Reason", ""),
-                        response=report_data.get("Threat Response", ""),
+                        reason=reason_str,
+                        response=response_str,
                     )
                     
                     # AgentResult 저장 (upsert)
@@ -199,36 +210,17 @@ def agent(event: dict, state: dict, group_id: str):
                     if existing_result:
                         # Update existing record
                         existing_result.severity = severity_enum
-                        existing_result.timeline = report_data.get("Timeline", "")
-                        existing_result.mitre_mapping = report_data.get("Mitre Mapping", "")
+                        existing_result.timeline = timeline_str
+                        existing_result.mitre_mapping = mitre_mapping_str
                         existing_result.report = report_link
-                        existing_result.reason = report_data.get("Reason", "")
-                        existing_result.response = report_data.get("Threat Response", "")
+                        existing_result.reason = reason_str
+                        existing_result.response = response_str
                     else:
                         # Insert new record
                         db.add(agent_result)
                     
-                    # 2. AgentTotal 레코드 생성
-                    def serialize_for_jsonb(data):
-                        if isinstance(data, dict):
-                            result = {}
-                            for key, value in data.items():
-                                if key == "messages":
-                                    serialized_msgs = []
-                                    for msg in value:
-                                        if hasattr(msg, 'dict'):
-                                            serialized_msgs.append(msg.dict())
-                                        elif isinstance(msg, dict):
-                                            serialized_msgs.append(msg)
-                                        else:
-                                            serialized_msgs.append({"content": str(msg)})
-                                    result[key] = serialized_msgs
-                                else:
-                                    result[key] = value
-                            return result
-                        return data
-                    
-                    content_data = serialize_for_jsonb(supervisor_result)
+                    # 2. AgentTotal 레코드 생성 - JSON 직렬화 가능하도록 변환
+                    content_data = json.loads(json.dumps(supervisor_result, default=str))
                     
                     agent_total = AgentTotal(
                         id=event.get("id"),
