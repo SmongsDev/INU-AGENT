@@ -52,7 +52,7 @@ class ChatService:
                     CloudTrail.event_time <= end_date,
                     AgentResult.severity.isnot(None)  # severity가 있는 것만 (Agent 분석 완료)
                 )
-            ).order_by(CloudTrail.event_time.desc())
+            ).order_by(CloudTrail.event_time.desc()).limit(500)  # 최신 500건으로 제한
 
             results = query.all()
 
