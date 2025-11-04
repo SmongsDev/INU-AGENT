@@ -44,14 +44,25 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install -r requirements.txt
 
+          # 기존 uvicorn 프로세스 모두 종료
+          pkill -f "uvicorn app.main:app" || true
+
+          # 포트를 사용하는 프로세스 강제 종료
           pid=$(lsof -ti:${{ secrets.PORT }})
           if [ ! -z "$pid" ]; then
             echo "Killing process using port ${{ secrets.PORT }}: $pid"
             kill -9 $pid || true
           fi
 
+          # 포트 해제 대기
+          sleep 3
+
           # FastAPI 서버 완전 디태치 실행
           nohup uvicorn app.main:app --host 0.0.0.0 --port ${{ secrets.PORT }} --log-level info > uvicorn.log 2>&1 < /dev/null &
+
+          # 서버 시작 대기
+          sleep 2
+          echo "Server deployment completed"
 
           exit
           EOF
