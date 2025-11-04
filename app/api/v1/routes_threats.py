@@ -86,29 +86,6 @@ def extract_role_name(user_identity: dict) -> str:
     except Exception:
         return "Unknown"
 
-# 임시로 구현한 함수
-def format_predicted_threat(ml_prediction: dict) -> str:
-    """
-    ML 예측 결과를 사용자 친화적 형태로 포맷
-
-    Args:
-        ml_prediction: ML 예측 데이터
-
-    Returns:
-        str: 포맷된 위협 예측 문자열
-    """
-    if not ml_prediction:
-        return "No Prediction"
-
-    is_threat = ml_prediction.get('is_threat', False)
-    confidence = ml_prediction.get('confidence', 0.0)
-    confidence_pct = int(confidence * 100)
-
-    if is_threat:
-        return f"Threat Detected ({confidence_pct}%)"
-    else:
-        return f"Normal ({confidence_pct}%)"
-
 @router.get("/threats", response_model=List[dict])
 def get_threats(
     group_id: UUID = Depends(get_group_id_from_token),
