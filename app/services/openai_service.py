@@ -2,7 +2,7 @@ import os
 import json
 import re
 from typing import Dict
-from openai import OpenAI
+from openai import AsyncOpenAI
 from fastapi import HTTPException
 
 from app.schemas.chat import ThreatStats
@@ -12,7 +12,7 @@ logger = get_logger(__name__)
 
 
 class OpenAIService:
-    """OpenAI 서비스 - GPT를 사용한 날짜 추출 및 요약 생성"""
+    """OpenAI 서비스 - GPT를 사용한 날짜 추출 및 요약 생성 (비동기)"""
 
     def __init__(self):
         """OpenAI 클라이언트 초기화"""
@@ -22,14 +22,14 @@ class OpenAIService:
             if not api_key:
                 raise ValueError("OpenAI API key is missing")
 
-            self.client = OpenAI(api_key=api_key)
+            self.client = AsyncOpenAI(api_key=api_key)
             self.model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')  # 기본값: gpt-4o-mini (저렴)
         except Exception as e:
             raise
 
-    def extract_date_range(self, user_question: str) -> Dict[str, str]:
+    async def extract_date_range(self, user_question: str) -> Dict[str, str]:
         """
-        OpenAI를 사용해 자연어 질문에서 날짜 범위 추출
+        OpenAI를 사용해 자연어 질문에서 날짜 범위 추출 (비동기)
 
         Args:
             user_question: 사용자 질문
@@ -61,13 +61,14 @@ Return JSON only: {{"start_date":"YYYY-MM-DD","end_date":"YYYY-MM-DD"}}
 Max end_date: {today}"""
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.0,  # 일관된 결과를 위해 0으로 설정
-                max_tokens=100
+                max_tokens=100,
+                timeout=30.0  # 30초 타임아웃
             )
 
             response_text = response.choices[0].message.content.strip()
@@ -153,9 +154,9 @@ Answer question first with numbers."""
 
         return prompt
 
-    def generate_summary(self, stats: ThreatStats, user_question: str, period: Dict[str, str]) -> str:
+    async def generate_summary(self, stats: ThreatStats, user_question: str, period: Dict[str, str]) -> str:
         """
-        위협 통계를 기반으로 AI 요약 생성
+        위협 통계를 기반으로 AI 요약 생성 (비동기)
 
         Args:
             stats: 집계된 통계 데이터
@@ -184,13 +185,14 @@ Answer question first with numbers."""
         prompt = self.create_summary_prompt(stats, user_question, period)
 
         try:
-            response = self.client.chat.completions.create(
+            response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=2000
+                max_tokens=1500,  # 응답 속도 개선을 위해 축소
+                timeout=45.0  # 45초 타임아웃
             )
 
             summary = response.choices[0].message.content.strip()
