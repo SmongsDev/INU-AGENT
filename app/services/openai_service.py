@@ -131,7 +131,7 @@ Max end_date: {today}"""
         else:
             critical_threats_text = "  (없음)"
 
-        prompt = f"""Cloud security analyst. Answer user question with data.
+        prompt = f"""Cloud security analyst. Concise Korean answer.
 
 Period: {period['start']}~{period['end']}
 Total: {stats.total_count} | H:{stats.by_risk_level.get('high', 0)} M:{stats.by_risk_level.get('medium', 0)} L:{stats.by_risk_level.get('low', 0)}
@@ -139,18 +139,17 @@ Total: {stats.total_count} | H:{stats.by_risk_level.get('high', 0)} M:{stats.by_
 Top events:
 {top_events_text}
 
-Critical:
+Critical threats:
 {critical_threats_text}
 
 Q: "{user_question}"
 
-Korean response format:
-## 질문 답변
-## 요약
-## 주요 위협
-## 권장사항
+Format (Korean, be brief):
+## 답변
+## 주요 위협 (top 3)
+## 권장사항 (2-3 items)
 
-Answer question first with numbers."""
+Keep under 500 words."""
 
         return prompt
 
@@ -191,8 +190,8 @@ Answer question first with numbers."""
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=1500,  # 응답 속도 개선을 위해 축소
-                timeout=45.0  # 45초 타임아웃
+                max_tokens=800,  # AWS 환경에서 60초 이내 응답을 위해 축소
+                timeout=40.0  # 40초 타임아웃
             )
 
             summary = response.choices[0].message.content.strip()
