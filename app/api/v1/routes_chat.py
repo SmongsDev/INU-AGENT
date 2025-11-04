@@ -50,18 +50,11 @@ async def create_chat_summary(
         HTTPException 500: 서버 오류
     """
     try:
-        import time
-        request_start = time.time()
-        logger.info(f"[CHAT] Request started - Question: {request.question}")
-
         # 1. OpenAI로 질문에서 날짜 범위 추출 (1단계)
         openai = get_openai_service()
 
         try:
-            step1_start = time.time()
             date_range = await openai.extract_date_range(request.question)
-            logger.info(f"[CHAT] Step 1 (Date extraction) took {time.time() - step1_start:.2f}s")
-
             start_dt = datetime.fromisoformat(date_range['start_date']).replace(hour=0, minute=0, second=0, microsecond=0)
             end_dt = datetime.fromisoformat(date_range['end_date']).replace(hour=23, minute=59, second=59, microsecond=999999)
         except Exception as e:
@@ -70,14 +63,12 @@ async def create_chat_summary(
 
         # 2. 위협 데이터 조회
         try:
-            step2_start = time.time()
             threat_data = ChatService.fetch_threat_data(
                 db=db,
                 group_id=group_id,
                 start_date=start_dt,
                 end_date=end_dt
             )
-            logger.info(f"[CHAT] Step 2 (DB query) took {time.time() - step2_start:.2f}s - {len(threat_data)} records")
         except Exception as e:
             logger.error(f"Failed to fetch threat data: {str(e)}")
             raise HTTPException(
@@ -86,9 +77,7 @@ async def create_chat_summary(
             )
 
         # 3. 통계 집계
-        step3_start = time.time()
         stats = ChatService.aggregate_statistics(threat_data)
-        logger.info(f"[CHAT] Step 3 (Statistics) took {time.time() - step3_start:.2f}s")
 
         # 4. 조회 기간 정보
         period = {
@@ -98,13 +87,11 @@ async def create_chat_summary(
 
         # 5. AI 요약 생성 (OpenAI, 2단계, 비동기)
         try:
-            step5_start = time.time()
             summary = await openai.generate_summary(
                 stats=stats,
                 user_question=request.question,
                 period=period
             )
-            logger.info(f"[CHAT] Step 5 (Summary generation) took {time.time() - step5_start:.2f}s")
         except HTTPException:
             # OpenAI에서 발생한 HTTPException은 그대로 전파
             raise
@@ -123,7 +110,6 @@ async def create_chat_summary(
             extracted_from_question=True
         )
 
-        logger.info(f"[CHAT] Total request completed in {time.time() - request_start:.2f}s")
         return response
 
     except HTTPException:
