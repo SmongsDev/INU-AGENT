@@ -26,7 +26,7 @@ def get_openai_service() -> OpenAIService:
 
 
 @router.post("/chat/summary", response_model=ChatSummaryResponse)
-def create_chat_summary(
+async def create_chat_summary(
     request: ChatSummaryRequest,
     group_id: UUID = Depends(get_group_id_from_token),
     db: Session = Depends(get_db)
@@ -54,7 +54,7 @@ def create_chat_summary(
         openai = get_openai_service()
 
         try:
-            date_range = openai.extract_date_range(request.question)
+            date_range = await openai.extract_date_range(request.question)
             start_dt = datetime.fromisoformat(date_range['start_date']).replace(hour=0, minute=0, second=0, microsecond=0)
             end_dt = datetime.fromisoformat(date_range['end_date']).replace(hour=23, minute=59, second=59, microsecond=999999)
         except Exception as e:
@@ -85,9 +85,9 @@ def create_chat_summary(
             'end': end_dt.strftime('%Y-%m-%d')
         }
 
-        # 5. AI 요약 생성 (OpenAI, 2단계)
+        # 5. AI 요약 생성 (OpenAI, 2단계, 비동기)
         try:
-            summary = openai.generate_summary(
+            summary = await openai.generate_summary(
                 stats=stats,
                 user_question=request.question,
                 period=period
