@@ -192,7 +192,7 @@ def agent(event: dict, state: dict, group_id: str):
 
                     timeline_str = to_text(report_data.get("Timeline", ""))
                     mitre_mapping_str = to_text(report_data.get("Mitre Mapping", ""))
-                    reason_str = to_text(report_data.get("Reason", ""))
+                    reason_str = to_text(report_data.get("total_reason", ""))
                     response_str = to_text(report_data.get("Threat Response", ""))
 
                     agent_result = AgentResult(
@@ -267,7 +267,7 @@ def agent(event: dict, state: dict, group_id: str):
                                 slack_webhook_url=settings.slack_webhook_url,
                                 event_time=event_time,
                                 is_false_positive=analyze_result.get("is_false_positive", False),
-                                reason=report_data.get("Reason", ""),
+                                reason=report_data.get("total_reason", ""),
                                 response=report_data.get("Threat Response", ""),
                                 severity=severity_str
                             )
