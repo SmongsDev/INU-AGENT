@@ -160,7 +160,7 @@ def agent(event: dict, state: dict, group_id: str):
                     
                     "Timeline": report.get("timeline", "N/A"),
                     "Mitre Mapping": report.get("mitre_mapping", "N/A"),
-                    "Reason": report.get("reason", "N/A"),
+                    "total_reason": report.get("reason", "N/A"),
                     "Threat Response": report.get("threat_response", "N/A"),
                     
                     "behavior": {
