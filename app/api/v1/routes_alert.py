@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import date, timedelta
 from app.db.session import get_db
-from app.db.models import VwAlertsDailySummary, VwFalsePositiveTop
+from app.db.models import VwAlertsDailySummary, VwFalsePositiveTop, Event, AgentResult, CloudTrail
 from app.core.auth import get_group_id_from_token
 
 router = APIRouter()
@@ -179,4 +179,41 @@ def get_alerts_timeseries(
         raise HTTPException(
             status_code=500,
             detail=f"Alert 주간 추이 조회 중 오류 발생: {str(e)}"
+        )
+
+@router.post("/alerts/alert")
+def get_alerts_events(
+    group_id: UUID = Depends(get_group_id_from_token),
+    db: Session = Depends(get_db)
+):
+
+    try:
+        # Event, AgentResult, CloudTrail 3-way JOIN
+        results = db.query(
+            CloudTrail.event_name,
+            AgentResult.severity,
+            CloudTrail.event_time
+        ).select_from(Event).join(
+            AgentResult, Event.id == AgentResult.id
+        ).join(
+            CloudTrail, Event.id == CloudTrail.id
+        ).filter(
+            Event.group_id == group_id
+        ).order_by(
+            CloudTrail.event_time.desc()
+        ).limit(5).all()
+
+        return [
+            {
+                "event_name": row.event_name,
+                "severity": row.severity.value if row.severity else None,
+                "event_time": row.event_time.isoformat() if row.event_time else None
+            }
+            for row in results
+        ]
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Alert 이벤트 목록 조회 중 오류 발생: {str(e)}"
         )
