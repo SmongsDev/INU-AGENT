@@ -1,3 +1,8 @@
+> 이 프로젝트는 [S-Developer-Team-INU](https://github.com/S-Developer-Team-INU) 팀 프로젝트를 기반으로,
+> 개인 포트폴리오 목적의 고도화 작업을 진행한 저장소입니다 (INU Security Platform v2).
+> 팀 프로젝트 당시 담당 파트: ML 모델 / Detector 수집 파이프라인 / Agent 백엔드
+> 변경 이력은 docs/decisions/ 의 ADR 문서를 참고해주세요.
+
 # INU-AGENT
 
 AWS CloudTrail 이벤트를 모니터링하고 분석하는 AI 기반 에이전트 시스템입니다.
