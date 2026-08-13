@@ -3,6 +3,7 @@ import numpy as np
 import json
 import joblib
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Union, Tuple, Any, Optional
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, train_test_split, TimeSeriesSplit
@@ -12,7 +13,12 @@ import warnings
 from functools import lru_cache
 import logging
 
+from .sigma_labeler import SigmaRuleMatcher, load_rules
+
 warnings.filterwarnings('ignore')
+
+# SigmaHQ CloudTrail 룰 10종. 라벨 생성의 단일 출처.
+DEFAULT_RULES_DIR = Path(__file__).resolve().parent / "rules"
 
 # 로거 설정
 logger = logging.getLogger(__name__)
@@ -46,11 +52,12 @@ class CloudTrailThreatDetector:
         'CreateAccessKey', 'DeleteAccessKey', 'AssumeRole'
     ])
     
-    def __init__(self, **rf_params):
+    def __init__(self, rules_dir: Union[str, Path, None] = None, **rf_params):
         """
         CloudTrail 위협 탐지기를 초기화합니다.
-        
+
         Args:
+            rules_dir: Sigma 룰 디렉토리 (기본: ml/src/core/rules/)
             **rf_params: Random Forest 매개변수 (n_estimators, max_depth 등)
         """
         default_params = {
@@ -61,13 +68,19 @@ class CloudTrailThreatDetector:
             'class_weight': 'balanced'
         }
         default_params.update(rf_params)
-        
+
         self.model = RandomForestClassifier(**default_params)
         self.label_encoders = {}
         self.feature_names = []
         self.feature_importance_ = None
         self.is_trained = False
-        
+
+        # 라벨 생성기. 홈메이드 규칙을 대체한다 (INU-ML ADR-0002).
+        self.rules_dir = Path(rules_dir) if rules_dir else DEFAULT_RULES_DIR
+        self.rules: List[SigmaRuleMatcher] = load_rules(self.rules_dir)
+        if not self.rules:
+            raise ValueError(f"Sigma 룰을 찾을 수 없습니다: {self.rules_dir}")
+
     def extract_features(self, log_event: Dict, previous_events: List[Dict] = None) -> pd.DataFrame:
         """
         단일 CloudTrail 로그 이벤트에서 특성을 추출합니다.
@@ -301,89 +314,43 @@ class CloudTrailThreatDetector:
 
         return sequence_features
 
-    def _create_rule_based_labels(self, logs_data: List[Dict], use_sequence_features: bool = True) -> np.ndarray:
+    def matched_rules(self, log_event: Dict) -> List[Dict[str, Any]]:
+        """이벤트에 매칭된 Sigma 룰 목록. 판정 근거 제시용."""
+        matched = []
+        for rule in self.rules:
+            if rule.matches(log_event):
+                matched.append({
+                    'title': rule.title,
+                    'rule_id': rule.rule_id,
+                    'level': rule.level,
+                    'mitre': rule.mitre_tags,
+                    'source_file': rule.source_file,
+                })
+        return matched
+
+    def _create_sigma_labels(self, logs_data: List[Dict]) -> np.ndarray:
+        """SigmaHQ 룰 10종 중 1개 이상 매칭이면 위협(1), 아니면 정상(0).
+
+        이전에는 홈메이드 규칙(_create_rule_based_labels)을 썼다. 폐기 이유는
+        성능이 아니라 **검증 주체의 부재**다 — 우리가 기준을 만들고 우리가 채점하는
+        구조에서는 같은 실패가 반복된다 (INU-ML ADR-0002).
+
+        특히 구 규칙 6은 시퀀스 특성(has_stratus_in_1min, burst_detected,
+        error_rate_5min, unique_api_count_5min, user_activity_spike)으로 라벨을
+        만들면서 **같은 필드를 모델 특성으로도 넣고 있었다**. 라벨과 특성이 동일
+        필드를 공유하면 모델은 위협이 아니라 라벨링 규칙의 if문을 학습한다.
+        Sigma 라벨로 바꾸면서 이 경로를 제거했다.
+
+        주의: 라벨을 바꾸는 것만으로 누수가 사라지지는 않는다. Sigma 탐지 조건이
+        참조하는 원문 필드(event_name, event_source, user_type, user_agent)는
+        여전히 특성에 남아 있다. 특성 축 분리는 후속 작업이다 (INU-ML ADR-0002 4.3,
+        ADR-0003). 현재 상태는 "라벨 소스 교체 완료 / 특성 분리 미완"이다.
         """
-        훈련 데이터를 위한 규칙 기반 라벨을 생성합니다.
+        return np.array([
+            1 if any(rule.matches(ev) for rule in self.rules) else 0
+            for ev in logs_data
+        ])
 
-        데이터가 적은 상황에서 최소한의 확실한 위협만 탐지하도록 보수적으로 설계됨.
-
-        Args:
-            logs_data: CloudTrail 로그 이벤트 리스트 (시간순 정렬 권장)
-            use_sequence_features: 시퀀스 특성을 라벨링에 사용할지 여부
-
-        Returns:
-            라벨 배열 (1: 위협, 0: 정상)
-        """
-        labels = []
-
-        for idx, log_event in enumerate(logs_data):
-            # 시퀀스 특성 사용 시 이전 이벤트들을 컨텍스트로 전달
-            if use_sequence_features and idx > 0:
-                # 최근 100개 이벤트를 컨텍스트로 사용
-                previous_events = logs_data[max(0, idx-100):idx]
-                features_df = self.extract_features(log_event, previous_events=previous_events)
-            else:
-                features_df = self.extract_features(log_event, previous_events=None)
-
-            features = features_df.iloc[0]
-
-            is_threat = False
-
-            # 규칙 1: Red Team 도구 사용 (가장 확실한 위협)
-            # stratus-red-team, metasploit 등의 공격 도구 탐지
-            if features['has_threat_tool']:
-                is_threat = True
-
-            # 규칙 2: Red Team 관련 리소스 접근 (높은 확신)
-            # 'stratus', 'red', 'attack', 'test' 등이 포함된 버킷명
-            if features['has_suspicious_resource']:
-                is_threat = True
-
-            # 규칙 3: 의심스러운 리소스에 대한 접근 거부
-            # Red Team 버킷에 대한 AccessDenied = 공격 시도
-            if features['is_access_denied'] and features['has_suspicious_resource']:
-                is_threat = True
-
-            # 규칙 4 (완화): 프로그래매틱 + 고위험 액션만으로는 불충분
-            # 추가 조건 필요: 비정상 IP 또는 에러 발생
-            if (features['is_programmatic'] and
-                features['is_high_risk_action'] and
-                (not features['is_aws_ip'] and not features['is_internal_ip'])):
-                is_threat = True
-
-            # 규칙 5 (강화): 매우 강한 의심 신호가 4개 이상일 때만
-            # 정상 운영 활동과의 구분을 위해 임계값 상향
-            suspicious_count = sum([
-                features['has_error_code'],
-                features['is_programmatic'],
-                features['is_high_risk_action'],
-                features['has_suspicious_resource'],
-                not features['is_aws_ip'] and not features['is_internal_ip']
-            ])
-
-            if suspicious_count >= 4:
-                is_threat = True
-
-            # 규칙 6 (시퀀스 기반): 명확한 공격 패턴 탐지
-            if use_sequence_features:
-                # 1분 내 Stratus 도구 + 버스트 패턴 = 자동화된 공격
-                if features.get('has_stratus_in_1min', False) and features.get('burst_detected', False):
-                    is_threat = True
-
-                # 매우 높은 에러율 + 다양한 API 호출 = 무차별 대입 공격 가능성
-                if (features.get('error_rate_5min', 0.0) > 0.5 and
-                    features.get('unique_api_count_5min', 0) > 10):
-                    is_threat = True
-
-                # 활동 급증 + 고위험 액션 = 의심스러운 대량 작업
-                if (features.get('user_activity_spike', False) and
-                    features['is_high_risk_action']):
-                    is_threat = True
-
-            labels.append(1 if is_threat else 0)
-
-        return np.array(labels)
-    
     def _prepare_features(self, features_df: pd.DataFrame, is_training: bool = False) -> pd.DataFrame:
         """
         라벨 인코딩을 사용하여 훈련 또는 예측을 위한 특성을 준비합니다.
@@ -551,9 +518,11 @@ class CloudTrailThreatDetector:
         
         # 라벨이 제공되지 않은 경우 생성
         if labels is None:
-            print("규칙 기반 라벨을 생성하는 중...")
-            # 시퀀스 특성을 고려한 라벨링 (sorted_logs 사용)
-            labels = self._create_rule_based_labels(sorted_logs, use_sequence_features=use_sequence_features)
+            print(f"Sigma 룰 {len(self.rules)}종으로 라벨을 생성하는 중...")
+            # 라벨은 개별 이벤트에 대한 결정적 룰 매칭이므로 시퀀스 컨텍스트가 필요 없다.
+            # (구 규칙 6은 시퀀스 특성으로 라벨을 만들면서 같은 필드를 특성으로도 써
+            #  누수를 일으켰다 — _create_sigma_labels 주석 참고)
+            labels = self._create_sigma_labels(sorted_logs)
 
         # 특성 준비
         print("범주형 특성을 인코딩하는 중...")
@@ -634,32 +603,46 @@ class CloudTrailThreatDetector:
         prediction = self.model.predict(X)[0]
         return bool(prediction)
     
-    def _check_definite_threat(self, features: pd.Series) -> Tuple[bool, float, str]:
-        """
-        확실한 위협 패턴을 규칙 기반으로 체크합니다.
+    # 룰 심각도별 신뢰도. 룰이 매칭되면 ML을 건너뛰고 이 값으로 확정하므로,
+    # 근거가 명확한 high 쪽만 높게 둔다.
+    _LEVEL_CONFIDENCE = {
+        'critical': 0.99,
+        'high': 0.95,
+        'medium': 0.90,
+        'low': 0.85,
+    }
 
-        데이터가 적은 상황에서 ML 모델 예측 전에 명확한 위협을 먼저 탐지합니다.
+    def _check_definite_threat(self, log_event: Dict) -> Tuple[bool, float, str]:
+        """
+        확실한 위협 패턴을 Sigma 룰로 체크합니다.
+
+        ML 모델 예측 전에 **알려진 공격 기법**을 먼저 확정한다. 모델은 행동 패턴을
+        보고 룰은 기법을 보므로, 둘을 병행하는 구조 자체는 유지한다.
+
+        이전에는 홈메이드 규칙(has_threat_tool / has_suspicious_resource)을 썼다.
+        flaws.cloud 3만 건 실측에서 has_threat_tool은 **0건** 발화했고
+        (튜닝된 THREAT_TOOLS 목록에 해당하는 도구가 데이터에 없음),
+        has_suspicious_resource는 버킷명에 'test'/'red'가 들어갔다는 이유만으로
+        발화한다. 근거 없이 confidence 0.99를 확정하던 경로였다.
 
         Args:
-            features: 추출된 특성 (단일 행)
+            log_event: CloudTrail 로그 이벤트 (원본 dict)
 
         Returns:
             (is_definite_threat, confidence, reason) 튜플
         """
-        # 규칙 1: Red Team 도구 사용 = 확실한 위협
-        if features.get('has_threat_tool', False):
-            return (True, 0.99, "Red Team tool detected (stratus/metasploit/etc)")
+        matched = self.matched_rules(log_event)
+        if not matched:
+            return (False, 0.0, "")
 
-        # 규칙 2: Red Team 관련 리소스 직접 접근 = 확실한 위협
-        if features.get('has_suspicious_resource', False):
-            return (True, 0.95, "Suspicious resource name (stratus/red/attack/test)")
-
-        # 규칙 3: Red Team 리소스 + AccessDenied = 공격 시도
-        if (features.get('is_access_denied', False) and
-            features.get('has_suspicious_resource', False)):
-            return (True, 0.98, "Access denied on suspicious resource")
-
-        return (False, 0.0, "")
+        # 가장 심각한 룰을 대표로 삼는다.
+        top = max(matched, key=lambda r: self._LEVEL_CONFIDENCE.get(r['level'], 0.85))
+        confidence = self._LEVEL_CONFIDENCE.get(top['level'], 0.85)
+        mitre = ", ".join(top['mitre']) or "no MITRE mapping"
+        reason = f"Sigma rule matched: {top['title']} [{top['level']}] ({mitre})"
+        if len(matched) > 1:
+            reason += f" (+{len(matched) - 1} more)"
+        return (True, confidence, reason)
 
     def predict_batch_with_confidence(self, log_events: List[Dict],
                                        ml_threshold: float = 0.7) -> List[Dict[str, Union[bool, float]]]:
@@ -688,16 +671,16 @@ class CloudTrailThreatDetector:
 
         results = []
 
-        # 먼저 규칙 기반 체크 수행
-        for i, features in features_df.iterrows():
-            is_definite, rule_confidence, rule_reason = self._check_definite_threat(features)
+        # 먼저 Sigma 룰 체크 수행 (원본 이벤트에 직접 매칭)
+        for log_event in log_events:
+            is_definite, rule_confidence, rule_reason = self._check_definite_threat(log_event)
 
             if is_definite:
-                # 확실한 위협은 ML 모델 사용 안 함
+                # 알려진 공격 기법에 매칭되면 ML 모델 사용 안 함
                 results.append({
                     'is_threat': True,
                     'confidence': rule_confidence,
-                    'detection_method': 'rule_based',
+                    'detection_method': 'sigma_rule',
                     'reason': rule_reason
                 })
             else:
@@ -769,22 +752,42 @@ class CloudTrailThreatDetector:
             'model': self.model,
             'label_encoders': self.label_encoders,
             'feature_names': self.feature_names,
-            'feature_importance': self.feature_importance_
+            'feature_importance': self.feature_importance_,
+            # 라벨 출처를 모델 파일에 각인한다. 이 값이 없는 파일은 홈메이드 규칙으로
+            # 학습된 구버전이므로 로드를 거부한다.
+            'label_source': 'sigma_rules',
+            'sigma_rule_files': sorted(r.source_file for r in self.rules),
         }
-        
+
         joblib.dump(model_data, filepath)
-        print(f"모델이 {filepath}에 저장되었습니다")
-    
+        print(f"모델이 {filepath}에 저장되었습니다 (라벨 출처: Sigma 룰 {len(self.rules)}종)")
+
     def load_model(self, filepath: str):
         """디스크에서 훈련된 모델과 인코더를 로드합니다."""
         model_data = joblib.load(filepath)
-        
+
+        if model_data.get('label_source') != 'sigma_rules':
+            raise ValueError(
+                f"{filepath}는 홈메이드 규칙으로 학습된 구버전 모델입니다. "
+                "해당 라벨 체계는 검증 주체 부재로 폐기됐습니다(INU-ML ADR-0002). "
+                "재훈련이 필요합니다: python ml/src/core/train_model.py"
+            )
+
         self.model = model_data['model']
         self.label_encoders = model_data['label_encoders']
         self.feature_names = model_data['feature_names']
         self.feature_importance_ = model_data['feature_importance']
         self.is_trained = True
-        
+
+        saved_rules = model_data.get('sigma_rule_files', [])
+        current_rules = sorted(r.source_file for r in self.rules)
+        if saved_rules and saved_rules != current_rules:
+            # 룰이 곧 라벨이므로, 룰셋이 바뀌면 모델이 학습한 대상 자체가 달라진다.
+            logger.warning(
+                "모델 학습 시점의 Sigma 룰셋과 현재 룰셋이 다릅니다. "
+                f"학습 시 {len(saved_rules)}종 / 현재 {len(current_rules)}종. 재훈련을 권장합니다."
+            )
+
         print(f"모델이 {filepath}에서 로드되었습니다")
     
     def get_feature_importance(self) -> pd.DataFrame:

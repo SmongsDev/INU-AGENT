@@ -41,3 +41,5 @@ openai==1.109.1
 
 # report
 reportlab==4.4.4
+# ML 라벨링 (SigmaHQ 룰 평가)
+pysigma==1.5.0
